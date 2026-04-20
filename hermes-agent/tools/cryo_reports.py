@@ -18,22 +18,82 @@ API_PATH = Path(__file__).resolve().parent.parent.parent / "api"
 if str(API_PATH.parent) not in sys.path:
     sys.path.insert(0, str(API_PATH.parent))
 
-REPORTS_DIR = Path(os.getenv("CRYO_REPORTS_DIR", "/tmp/cryo-reports"))
-REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = Path(os.getenv("CRYO_DATA_DIR", "/cryo-data"))
+MAX_CONVERSATIONS_PER_USER = int(os.getenv("CRYO_MAX_CONVERSATIONS_PER_USER", "50"))
+
+
+def _get_output_dir() -> Path:
+    """Get the output directory for the current user/conversation.
+
+    Structure: /cryo-data/users/{user_id}/conversations/{conversation_id}/reports/
+    Falls back to /cryo-data/reports/ if no user context.
+    """
+    user_id = os.getenv("CRYO_USER_ID", "")
+    convo_id = os.getenv("CRYO_CONVERSATION_ID", "")
+
+    if user_id and convo_id:
+        user_dir = DATA_DIR / "users" / user_id
+        convo_dir = user_dir / "conversations" / convo_id / "reports"
+        convo_dir.mkdir(parents=True, exist_ok=True)
+
+        # Enforce max 50 conversations per user — delete oldest
+        _cleanup_old_conversations(user_dir / "conversations")
+
+        return convo_dir
+
+    fallback = DATA_DIR / "reports"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+def _get_sources_dir() -> Path:
+    user_id = os.getenv("CRYO_USER_ID", "")
+    convo_id = os.getenv("CRYO_CONVERSATION_ID", "")
+
+    if user_id and convo_id:
+        d = DATA_DIR / "users" / user_id / "conversations" / convo_id / "sources"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    fallback = DATA_DIR / "sources"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+def _cleanup_old_conversations(conversations_dir: Path):
+    """Keep only the newest MAX_CONVERSATIONS_PER_USER conversation dirs."""
+    try:
+        if not conversations_dir.exists():
+            return
+        convos = sorted(
+            [d for d in conversations_dir.iterdir() if d.is_dir()],
+            key=lambda d: d.stat().st_mtime,
+            reverse=True,
+        )
+        for old_dir in convos[MAX_CONVERSATIONS_PER_USER:]:
+            import shutil
+            shutil.rmtree(old_dir, ignore_errors=True)
+            logger.info("Cleaned old conversation dir: %s", old_dir.name[:12])
+    except Exception as e:
+        logger.warning("Conversation cleanup failed: %s", e)
 
 
 def _gen_filename(prefix: str, ext: str) -> tuple[str, Path]:
     fid = uuid.uuid4().hex[:12]
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     name = f"{prefix}_{ts}_{fid}.{ext}"
-    return name, REPORTS_DIR / name
+    return name, _get_output_dir() / name
 
 
 # ═══════════════════════════════════════════════════════════
 # compile_report — markdown → interactive HTML report
 # ═══════════════════════════════════════════════════════════
 
+_last_report = {"title": "", "content": "", "citations": [], "filename": ""}
+
+
 def _compile_report(args: dict, **kw) -> str:
+    global _last_report
     title = args.get("title", "CRYO Research Report")
     content = args.get("content", "")
     citations_raw = args.get("citations", [])
@@ -97,6 +157,25 @@ def _compile_report(args: dict, **kw) -> str:
                 "verification_status": "moderate",
             },
         })
+
+        # Save raw source for editing later
+        report_filename = result.get("filename", "")
+        source_name = report_filename.replace(".html", ".json") if report_filename else ""
+        if source_name:
+            source_path = _get_sources_dir() / source_name
+            source_path.write_text(json.dumps({
+                "title": title,
+                "content": content,
+                "citations": citations_raw,
+                "filename": report_filename,
+            }, ensure_ascii=False, indent=2))
+            logger.info("Source saved: %s", source_name)
+
+        _last_report["title"] = title
+        _last_report["content"] = content
+        _last_report["citations"] = citations_raw
+        _last_report["filename"] = report_filename
+
         return json.dumps(result)
 
     except Exception as e:
@@ -109,6 +188,65 @@ def _compile_report(args: dict, **kw) -> str:
             "download_url": f"/api/reports/{filename}",
             "size_bytes": filepath.stat().st_size, "engine": "fallback",
         })
+
+
+# ═══════════════════════════════════════════════════════════
+# get_last_report — retrieve raw markdown of last report for editing
+# ═══════════════════════════════════════════════════════════
+
+def _get_last_report(args: dict, **kw) -> str:
+    report_id = args.get("report_id", "")
+
+    # Try memory first
+    if _last_report["content"] and not report_id:
+        return json.dumps({
+            "title": _last_report["title"],
+            "content": _last_report["content"],
+            "citations": _last_report["citations"],
+            "filename": _last_report["filename"],
+            "content_length": len(_last_report["content"]),
+            "instructions": "Modify the content as requested, then call compile_report with the updated content and citations.",
+        })
+
+    # Try loading from disk (by report_id or latest)
+    try:
+        sources_dir = _get_sources_dir()
+        if report_id:
+            source_files = list(sources_dir.glob(f"*{report_id}*.json"))
+        else:
+            source_files = sorted(sources_dir.glob("report_*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+
+        if source_files:
+            data = json.loads(source_files[0].read_text())
+            return json.dumps({
+                "title": data.get("title", ""),
+                "content": data.get("content", ""),
+                "citations": data.get("citations", []),
+                "filename": data.get("filename", ""),
+                "content_length": len(data.get("content", "")),
+                "source_file": source_files[0].name,
+                "instructions": "Modify the content as requested, then call compile_report with the updated content and citations.",
+            })
+    except Exception as e:
+        logger.error("Failed to load report source: %s", e)
+
+    return json.dumps({"error": "No report found. Generate a report first with /report."})
+
+
+registry.register(
+    name="get_last_report",
+    toolset="cryo_reports",
+    schema={
+        "name": "get_last_report",
+        "description": "Retrieve the raw markdown content of the last generated report. Use this when the user asks to modify, edit, expand, or add to an existing report. After getting the content, modify it and call compile_report again with the updated content.",
+        "parameters": {"type": "object", "properties": {
+            "report_id": {"type": "string", "description": "Optional report filename to retrieve a specific report. Leave empty for the most recent."},
+        }},
+    },
+    handler=_get_last_report,
+    check_fn=lambda: True,
+    emoji="📄",
+)
 
 
 COMPILE_SCHEMA = {

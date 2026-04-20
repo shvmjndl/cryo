@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 import sys
 import traceback
@@ -124,11 +125,12 @@ class HermesBridge:
         return self._agent
 
     async def chat_stream(
-        self, message: str, history: list[dict[str, str]] | None = None
+        self, message: str, history: list[dict[str, str]] | None = None,
+        user_id: str = "", conversation_id: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
         translated = translate_slash_command(message)
-        logger.info("Chat: original=%r history=%d translated=%r",
-                    message[:60], len(history or []), translated[:60])
+        logger.info("Chat: user=%s convo=%s history=%d translated=%r",
+                    user_id[:8], conversation_id[:8], len(history or []), translated[:60])
 
         chunks: list[str] = []
         tool_events: list[dict] = []
@@ -149,6 +151,11 @@ class HermesBridge:
 
         def _run():
             agent = self._get_agent()
+
+            # Set per-request data path so tools write to user/conversation dirs
+            if user_id and conversation_id:
+                os.environ["CRYO_USER_ID"] = user_id
+                os.environ["CRYO_CONVERSATION_ID"] = conversation_id
 
             # Build conversation history for Hermes (from our PostgreSQL messages)
             conversation_history = []

@@ -14,7 +14,7 @@ from api.routers import auth, chat
 
 setup_logging(os.getenv("LOG_LEVEL", "INFO"))
 
-REPORTS_DIR = Path(os.getenv("CRYO_REPORTS_DIR", "/tmp/cryo-reports"))
+REPORTS_DIR = Path(os.getenv("CRYO_DATA_DIR", "/cryo-data")) / "reports"
 ALLOWED_EXTENSIONS = {".html", ".pdf", ".xlsx", ".png", ".jpg", ".csv"}
 MEDIA_TYPES = {
     ".html": "text/html",
@@ -64,10 +64,17 @@ async def download_report(filename: str):
     if not re.match(r"^[a-zA-Z0-9_\-]+\.[a-z]+$", filename):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    filepath = REPORTS_DIR / filename
-
-    if filepath.suffix.lower() not in ALLOWED_EXTENSIONS:
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="File type not allowed")
+
+    # Search in fallback dir first, then across all user/conversation dirs
+    filepath = REPORTS_DIR / filename
+    if not filepath.exists():
+        data_dir = Path(os.getenv("CRYO_DATA_DIR", "/cryo-data"))
+        matches = list(data_dir.glob(f"**/reports/{filename}"))
+        if matches:
+            filepath = matches[0]
 
     if not filepath.exists() or not filepath.is_file():
         raise HTTPException(status_code=404, detail="Report not found")

@@ -136,7 +136,10 @@ async def send_message(
     async def event_stream() -> AsyncGenerator[str, None]:
         full_response = []
 
-        async for event in bridge.chat_stream(req.message, history):
+        async for event in bridge.chat_stream(
+            req.message, history,
+            user_id=str(user.id), conversation_id=str(convo.id),
+        ):
             event_type = event.get("type", "delta")
 
             if event_type == "delta":

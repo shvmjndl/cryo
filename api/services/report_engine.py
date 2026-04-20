@@ -32,8 +32,19 @@ from pathlib import Path
 
 logger = logging.getLogger("cryo.report_engine")
 
-REPORTS_DIR = Path(os.getenv("CRYO_REPORTS_DIR", "/tmp/cryo-reports"))
-REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = Path(os.getenv("CRYO_DATA_DIR", "/cryo-data"))
+
+
+def _get_reports_dir() -> Path:
+    """Get reports dir — respects per-request user/conversation context."""
+    user_id = os.getenv("CRYO_USER_ID", "")
+    convo_id = os.getenv("CRYO_CONVERSATION_ID", "")
+    if user_id and convo_id:
+        d = DATA_DIR / "users" / user_id / "conversations" / convo_id / "reports"
+    else:
+        d = DATA_DIR / "reports"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 CRYO_COLORS = ["#06b6d4", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444",
                "#3b82f6", "#ec4899", "#14b8a6", "#f97316", "#6366f1"]
@@ -478,8 +489,9 @@ def generate_report(report_data: dict) -> dict:
     # Save
     fid = uuid.uuid4().hex[:12]
     ts = now.strftime("%Y%m%d_%H%M%S")
+    reports_dir = _get_reports_dir()
     html_name = f"report_{ts}_{fid}.html"
-    html_path = REPORTS_DIR / html_name
+    html_path = reports_dir / html_name
     html_path.write_text(html)
 
     logger.info("Report v4 generated: %s (%d bytes)", html_name, html_path.stat().st_size)
