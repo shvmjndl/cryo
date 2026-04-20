@@ -219,6 +219,12 @@ cryo/
 │       ├── cryo_open_deep_research.py # multi_agent_research
 │       └── cryo_scientific_skills.py  # scientific_skill
 │
+├── cryo-data/                       # Persistent data (bind-mounted from host)
+│   └── users/{user_id}/
+│       └── conversations/{convo_id}/
+│           ├── reports/             # Generated HTML reports
+│           └── sources/             # Raw markdown JSON (for editing)
+│
 └── integrations/                    # Cloned open-source tools
     ├── gpt-researcher/              # Autonomous deep research
     ├── Co-Sight/                    # Conflict-aware verification
@@ -226,15 +232,31 @@ cryo/
     └── scientific-agent-skills/     # 133 scientific skill packs
 ```
 
+## Data Directory
+
+Reports and sources are stored per user/conversation:
+```
+cryo-data/
+  └── users/
+      └── {user_id}/
+          └── conversations/           ← max 50 per user, oldest auto-deleted
+              └── {conversation_id}/
+                  ├── reports/         ← generated HTML reports
+                  └── sources/         ← raw markdown JSON for report editing
+```
+
+The `cryo-data/` directory is bind-mounted from the host so you can browse files directly.
+
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `GEMINI_API_KEY` | Google AI Studio API key | **required** |
-| `HERMES_MODEL` | LLM model | `gemini-3-flash-preview` |
-| `HERMES_VLM_MODEL` | Vision model | `gemini-2.5-flash` |
+| `HERMES_MODEL` | LLM model | `gemini-3-pro-preview` |
 | `HERMES_PROVIDER` | LLM provider | `gemini` |
-| `HERMES_MAX_ITERATIONS` | Max tool loops per turn | `90` |
+| `HERMES_MAX_ITERATIONS` | Max tool loops per turn | `15` |
+| `CRYO_DATA_DIR` | Persistent data directory | `/cryo-data` |
+| `CRYO_MAX_CONVERSATIONS_PER_USER` | Max conversation dirs kept per user | `50` |
 | `POSTGRES_HOST` | Database host | `localhost` |
 | `POSTGRES_PORT` | Database port | `5432` |
 | `POSTGRES_DB` | Database name | `cryo` |
@@ -244,7 +266,6 @@ cryo/
 | `API_SECRET_KEY` | API secret | **required** |
 | `JWT_SECRET` | JWT signing secret (32+ bytes for prod) | **required** |
 | `JWT_EXPIRE_MINUTES` | Token TTL | `1440` |
-| `CRYO_REPORTS_DIR` | Generated files directory | `/tmp/cryo-reports` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 
 ## Docker Services

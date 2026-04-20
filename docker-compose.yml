@@ -43,7 +43,7 @@ services:
       - ./api:/app/api
       - ./hermes-agent:/app/hermes-agent
       - ./SOUL.md:/app/SOUL.md:ro
-      - cryo-data:/cryo-data
+      - ./cryo-data:/cryo-data
 
   # ─── React Frontend ─────────────────────────────────
   frontend:
@@ -71,4 +71,3 @@ services:
 
 volumes:
   pgdata:
-  cryo-data:

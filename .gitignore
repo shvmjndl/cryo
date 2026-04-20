@@ -40,3 +40,4 @@ hermes-agent/venv/
 hermes-agent/ui-tui/node_modules/
 hermes-agent/*.egg-info/
 ~/.hermes/
+cryo-data/
