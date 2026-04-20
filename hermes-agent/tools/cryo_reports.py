@@ -146,7 +146,7 @@ def _generate_pdf(args: dict, **kw) -> str:
 
 PDF_SCHEMA = {
     "name": "generate_pdf",
-    "description": "Generate a professionally formatted PDF research report. Supports title pages, sections with headings, tables, and summaries. Use after gathering research data to create downloadable reports.",
+    "description": "Generate a publication-quality PDF research report with cover page, styled sections, tables, and references. IMPORTANT: Write rich, detailed content for each section — do NOT just pass raw tool output. Synthesize findings into clear scientific prose. Include at minimum: an executive summary, 3-4 content sections with detailed paragraphs, and a references section. Each section's content should be 2-5 paragraphs of real analysis, not bullet points.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -156,7 +156,7 @@ PDF_SCHEMA = {
             },
             "summary": {
                 "type": "string",
-                "description": "Executive summary paragraph"
+                "description": "Executive summary — 3-5 sentences covering the key findings, clinical significance, and conclusions. Write this as polished scientific prose."
             },
             "sections": {
                 "type": "array",
@@ -167,7 +167,7 @@ PDF_SCHEMA = {
                         "content": {"description": "Text string or array of objects for table data"},
                     },
                 },
-                "description": "Report sections. Each has a heading and content (text or table data as array of objects)"
+                "description": "Report sections (aim for 4-6). Each has a heading and content. Content should be detailed paragraphs of scientific analysis (not raw data). For tables, pass array of objects. Example sections: 'Background', 'Key Drug Targets', 'Clinical Pipeline', 'Molecular Mechanisms', 'References'."
             },
         },
         "required": ["title"],

@@ -42,8 +42,8 @@ SLASH_TRANSLATORS = {
     "/pathway": "Explain the biological pathway: {query}. Include key genes/proteins, signaling cascade, disease relevance, and therapeutic targets.",
     "/compare": "Compare and contrast: {query}. Use relevant tools to gather data, then provide a detailed comparison.",
     "/export": "Export data about: {query}. Gather the data using appropriate tools, then generate an Excel file using generate_excel.",
-    "/report": "Do these steps in order: Step 1: Call opentargets_search OR pubmed_search ONCE to get data about: {query}. Step 2: Using the data you got, call generate_pdf with a title, summary, and sections array. Do NOT skip Step 2. You MUST call generate_pdf.",
-    "/chart": "Do these steps in order: Step 1: Gather data about {query} using ONE tool call. Step 2: Call generate_chart with the data formatted as labels and values arrays. You MUST call generate_chart.",
+    "/report": "Generate a world-class research report about: {query}. Follow these steps: 1) Call opentargets_search or pubmed_search for real data. 2) Call verify_claim to cross-check key findings across PubMed, OpenTargets, and CrossRef. 3) Call fetch_citation to get 3-5 proper APA citations. 4) Call generate_pdf with title, a detailed summary, and multiple sections (each with heading and rich content). Include the citations and verification results in the report. You MUST call generate_pdf as the final step.",
+    "/chart": "Create a data-driven visualization about: {query}. 1) Gather real data using the most relevant tool. 2) Call generate_chart with chart_type, title, and structured data (labels + values arrays). You MUST call generate_chart.",
 }
 
 SLASH_COMMANDS = [
@@ -110,14 +110,15 @@ class HermesBridge:
 
                 self._agent = AIAgent(
                     model=settings.HERMES_MODEL,
-                    max_iterations=6,
+                    max_iterations=10,
                     quiet_mode=True,
                     skip_context_files=True,
                     max_tokens=8192,
                     enabled_toolsets=[
                         "cryo_literature", "cryo_protein", "cryo_drug",
                         "cryo_variant", "cryo_reports", "cryo_vlm",
-                        "code_execution",
+                        "cryo_deep_research", "cryo_cosight",
+                        "cryo_scientific_skills",
                     ],
                 )
                 logger.info("Hermes AIAgent initialized successfully")
