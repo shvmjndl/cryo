@@ -9,7 +9,6 @@ bcrypt==4.3.0
 PyJWT==2.12.1
 httpx==0.28.1
 
-# Report generation
-reportlab==4.4.0
+# Report generation (HTML-based, no PDF libs needed)
 openpyxl==3.1.5
 matplotlib==3.10.3

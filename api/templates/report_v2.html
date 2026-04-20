@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ title }} — CRYO Report</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@page {
+    size: A4;
+    margin: 2.2cm 2.2cm 2.8cm 2.2cm;
+    @top-right {
+        content: "CRYO — {{ title[:40] }}";
+        font-family: 'Inter', sans-serif;
+        font-size: 6.5pt;
+        color: #94a3b8;
+        letter-spacing: 0.02em;
+    }
+    @bottom-left {
+        content: "Generated {{ generated_date }} · Report ID: {{ report_id }}";
+        font-family: 'Inter', sans-serif;
+        font-size: 6pt;
+        color: #cbd5e1;
+    }
+    @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-family: 'Inter', sans-serif;
+        font-size: 6.5pt;
+        color: #94a3b8;
+    }
+}
+@page :first {
+    margin: 0;
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+}
+
+:root {
+    --brand: #06b6d4;
+    --brand-dark: #0891b2;
+    --accent: #10b981;
+    --bg-dark: #0f172a;
+    --bg-card: #f8fafc;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-light: #64748b;
+    --text-muted: #94a3b8;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', -apple-system, sans-serif; font-size: 9.5pt; line-height: 1.7; color: var(--text); }
+
+/* ──── COVER ──── */
+.cover {
+    page-break-after: always;
+    height: 297mm; width: 210mm;
+    background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    color: #f1f5f9;
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+}
+.cover-glow-1 {
+    position: absolute; top: -120px; right: -80px; width: 450px; height: 450px;
+    background: radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 65%);
+    border-radius: 50%;
+}
+.cover-glow-2 {
+    position: absolute; bottom: -100px; left: -60px; width: 350px; height: 350px;
+    background: radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 65%);
+    border-radius: 50%;
+}
+.cover-inner {
+    position: relative; padding: 3.5cm 3cm; height: 100%;
+    display: flex; flex-direction: column; justify-content: space-between;
+}
+.cover-top { }
+.cover-logo {
+    font-family: 'JetBrains Mono', monospace; font-size: 12pt; font-weight: 700;
+    color: #06b6d4; letter-spacing: 0.35em;
+}
+.cover-logo-line {
+    display: block; width: 50px; height: 2px; margin-top: 6px;
+    background: linear-gradient(90deg, #06b6d4, #10b981, transparent);
+}
+.cover-title-block { margin-top: 3cm; }
+.cover-title {
+    font-size: 26pt; font-weight: 800; line-height: 1.15; color: #f1f5f9;
+    max-width: 85%;
+}
+.cover-subtitle {
+    font-size: 10.5pt; font-weight: 300; color: #94a3b8; margin-top: 14px;
+    line-height: 1.6; max-width: 80%;
+}
+.cover-meta-grid {
+    display: flex; gap: 1.8cm; margin-top: auto;
+}
+.cover-meta-card {
+    border-left: 2px solid #06b6d4; padding-left: 10px;
+}
+.cover-meta-label {
+    font-size: 5.5pt; text-transform: uppercase; letter-spacing: 0.12em;
+    color: #475569; margin-bottom: 2px;
+}
+.cover-meta-value { font-size: 8.5pt; color: #cbd5e1; font-weight: 500; }
+.cover-badge {
+    display: inline-block; padding: 3px 10px; margin-top: 12px;
+    border: 1px solid rgba(6,182,212,0.3); border-radius: 12px;
+    font-size: 6pt; color: #06b6d4; letter-spacing: 0.06em; font-weight: 600;
+}
+.cover-footer-bar {
+    border-top: 1px solid #334155; padding-top: 10px;
+    font-size: 6.5pt; color: #475569;
+    display: flex; justify-content: space-between;
+}
+
+/* ──── TOC ──── */
+.toc { page-break-after: always; padding-top: 1cm; }
+.toc h2 {
+    font-size: 16pt; font-weight: 700; color: var(--bg-dark);
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--brand);
+    display: inline-block;
+}
+.toc-item {
+    display: flex; align-items: baseline; padding: 5px 0;
+    border-bottom: 1px dotted #e2e8f0;
+}
+.toc-num { font-weight: 600; color: var(--brand); width: 24px; font-size: 9pt; }
+.toc-title { flex: 1; font-size: 9.5pt; color: var(--text); }
+.toc-dots { flex: 1; border-bottom: 1px dotted #cbd5e1; margin: 0 6px; min-width: 20px; }
+
+/* ──── SUMMARY BOX ──── */
+.summary {
+    background: linear-gradient(135deg, #f0fdfa, #ecfdf5);
+    border: 1px solid #99f6e4; border-left: 4px solid #14b8a6;
+    border-radius: 8px; padding: 18px 22px; margin-bottom: 26px;
+}
+.summary-label {
+    font-size: 7pt; text-transform: uppercase; letter-spacing: 0.12em;
+    color: #0f766e; font-weight: 700; margin-bottom: 6px;
+}
+.summary p { font-size: 9.5pt; color: #134e4a; line-height: 1.75; }
+
+/* ──── SECTIONS ──── */
+.section { margin-bottom: 26px; page-break-inside: avoid; }
+.section-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--brand);
+}
+.section-num {
+    font-family: 'JetBrains Mono', monospace; font-size: 10pt;
+    font-weight: 700; color: var(--brand);
+}
+.section-title { font-size: 13pt; font-weight: 700; color: var(--bg-dark); }
+.section p {
+    margin-bottom: 8px; text-align: justify; hyphens: auto;
+    font-size: 9.5pt; line-height: 1.75;
+}
+
+/* ──── HIGHLIGHT CARDS ──── */
+.highlights {
+    display: flex; gap: 12px; margin: 14px 0; flex-wrap: wrap;
+}
+.highlight-card {
+    flex: 1; min-width: 120px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; text-align: center;
+}
+.highlight-value {
+    font-size: 18pt; font-weight: 800; color: var(--brand);
+    line-height: 1.2;
+}
+.highlight-label {
+    font-size: 7pt; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-light); margin-top: 4px;
+}
+.highlight-desc { font-size: 7.5pt; color: var(--text-muted); margin-top: 2px; }
+
+/* ──── CHARTS ──── */
+.chart-container {
+    margin: 16px 0; text-align: center;
+    page-break-inside: avoid;
+}
+.chart-container img {
+    max-width: 100%; border-radius: 8px;
+    border: 1px solid #1e293b;
+}
+.chart-caption {
+    font-size: 7.5pt; color: var(--text-light); margin-top: 6px;
+    font-style: italic;
+}
+
+/* ──── TABLES ──── */
+.data-table {
+    width: 100%; border-collapse: collapse; font-size: 8pt;
+    margin: 14px 0; border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border);
+}
+.data-table th {
+    background: var(--bg-dark); color: #06b6d4;
+    padding: 8px 10px; text-align: left; font-weight: 600;
+    font-size: 7pt; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.data-table td {
+    padding: 6px 10px; border-bottom: 1px solid #f1f5f9;
+    color: #475569; vertical-align: top; font-size: 8pt;
+}
+.data-table tr:nth-child(even) { background: #f8fafc; }
+
+/* ──── CITATIONS ──── */
+.citations { page-break-before: always; }
+.citations h2 {
+    font-size: 13pt; font-weight: 700; color: var(--bg-dark);
+    padding-bottom: 6px; border-bottom: 2px solid #94a3b8;
+    margin-bottom: 14px;
+}
+.citation-entry {
+    font-size: 8pt; color: var(--text-light); line-height: 1.6;
+    margin-bottom: 8px; padding-left: 24px; text-indent: -24px;
+}
+.citation-num {
+    font-weight: 700; color: var(--brand); font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+}
+.citation-entry a { color: var(--brand-dark); text-decoration: none; }
+
+/* ──── DATA SOURCES FOOTER ──── */
+.sources-bar {
+    margin-top: 20px; padding: 10px 14px;
+    background: #f8fafc; border: 1px solid var(--border); border-radius: 6px;
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+}
+.source-badge {
+    font-size: 6.5pt; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-light);
+    padding: 2px 8px; background: white; border: 1px solid var(--border);
+    border-radius: 4px;
+}
+.source-label { font-size: 6.5pt; color: var(--text-muted); font-weight: 600; }
+
+/* ──── DOCUMENT FOOTER ──── */
+.doc-footer {
+    margin-top: 30px; padding-top: 12px; border-top: 1px solid var(--border);
+    font-size: 7pt; color: var(--text-muted); text-align: center;
+    line-height: 1.6;
+}
+
+/* ──── PRINT TWEAKS ──── */
+@media print {
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .highlight-card, .summary, .chart-container { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════ COVER PAGE ════ -->
+<div class="cover">
+    <div class="cover-glow-1"></div>
+    <div class="cover-glow-2"></div>
+    <div class="cover-inner">
+        <div class="cover-top">
+            <div class="cover-logo">CRYO<span class="cover-logo-line"></span></div>
+        </div>
+        <div class="cover-title-block">
+            <div class="cover-title">{{ title }}</div>
+            {% if subtitle %}
+            <div class="cover-subtitle">{{ subtitle }}</div>
+            {% elif summary %}
+            <div class="cover-subtitle">{{ summary[:180] }}{% if summary|length > 180 %}...{% endif %}</div>
+            {% endif %}
+            <div class="cover-badge">AI-GENERATED RESEARCH REPORT</div>
+        </div>
+        <div>
+            <div class="cover-meta-grid">
+                <div class="cover-meta-card">
+                    <div class="cover-meta-label">Date</div>
+                    <div class="cover-meta-value">{{ generated_date }}</div>
+                </div>
+                <div class="cover-meta-card">
+                    <div class="cover-meta-label">Sections</div>
+                    <div class="cover-meta-value">{{ sections|length }}</div>
+                </div>
+                <div class="cover-meta-card">
+                    <div class="cover-meta-label">Citations</div>
+                    <div class="cover-meta-value">{{ citations|length }}</div>
+                </div>
+                <div class="cover-meta-card">
+                    <div class="cover-meta-label">Report ID</div>
+                    <div class="cover-meta-value">{{ report_id }}</div>
+                </div>
+            </div>
+            <div class="cover-footer-bar">
+                <span>CRYO — Comprehensive Research Yielding Outcomes</span>
+                <span>Data verified via multi-source cross-referencing</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ════ TABLE OF CONTENTS ════ -->
+<div class="toc">
+    <h2>Table of Contents</h2>
+    {% if summary %}
+    <div class="toc-item">
+        <span class="toc-num"></span>
+        <span class="toc-title">Executive Summary</span>
+    </div>
+    {% endif %}
+    {% for section in sections %}
+    <div class="toc-item">
+        <span class="toc-num">{{ loop.index }}</span>
+        <span class="toc-title">{{ section.heading }}</span>
+    </div>
+    {% endfor %}
+    {% if citations %}
+    <div class="toc-item">
+        <span class="toc-num"></span>
+        <span class="toc-title">References ({{ citations|length }})</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ════ EXECUTIVE SUMMARY ════ -->
+{% if summary %}
+<div class="summary">
+    <div class="summary-label">Executive Summary</div>
+    <p>{{ summary }}</p>
+</div>
+{% endif %}
+
+<!-- ════ SECTIONS ════ -->
+{% for section in sections %}
+<div class="section">
+    <div class="section-header">
+        <span class="section-num">{{ "%02d"|format(loop.index) }}</span>
+        <span class="section-title">{{ section.heading }}</span>
+    </div>
+
+    <!-- Highlight cards -->
+    {% if section.highlights %}
+    <div class="highlights">
+        {% for h in section.highlights %}
+        <div class="highlight-card">
+            <div class="highlight-value">{{ h.value }}</div>
+            <div class="highlight-label">{{ h.label }}</div>
+            {% if h.description %}
+            <div class="highlight-desc">{{ h.description }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Prose content -->
+    {% if section.content %}
+        {% if section.content is string %}
+            {% for para in section.content.split('\n\n') %}
+                {% set p = para.strip() %}
+                {% if p %}
+                    {% if p.startswith('- ') or p.startswith('* ') %}
+                    <ul>
+                        {% for line in p.split('\n') %}
+                            {% if line.strip() %}
+                            <li>{{ line.strip().lstrip('- *') }}</li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p>{{ p }}</p>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    {% endif %}
+
+    <!-- Chart -->
+    {% if section.chart_b64 %}
+    <div class="chart-container">
+        <img src="data:image/png;base64,{{ section.chart_b64 }}" alt="{{ section.chart.title if section.chart else 'Chart' }}">
+        <div class="chart-caption">Figure {{ loop.index }}: {{ section.chart.title if section.chart else section.heading }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Table -->
+    {% if section.table and section.table.headers and section.table.rows %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                {% for header in section.table.headers %}
+                <th>{{ header }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in section.table.rows[:25] %}
+            <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endfor %}
+
+<!-- ════ DATA SOURCES ════ -->
+{% if metadata and metadata.data_sources %}
+<div class="sources-bar">
+    <span class="source-label">Data Sources:</span>
+    {% for src in metadata.data_sources %}
+    <span class="source-badge">{{ src }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- ════ REFERENCES ════ -->
+{% if citations %}
+<div class="citations">
+    <h2>References</h2>
+    {% for cite in citations %}
+    <div class="citation-entry">
+        <span class="citation-num">[{{ loop.index }}]</span>
+        {{ cite.text }}
+        {% if cite.url %}
+        <a href="{{ cite.url }}">{{ cite.doi if cite.doi else cite.url }}</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- ════ FOOTER ════ -->
+<div class="doc-footer">
+    Generated by CRYO — Comprehensive Research Yielding Outcomes<br>
+    Data sourced from PubMed, OpenTargets, ChEMBL, ClinVar, UniProt, CrossRef<br>
+    Report ID: {{ report_id }} · {{ generated_date }} {{ generated_time }}
+</div>
+
+</body>
+</html>

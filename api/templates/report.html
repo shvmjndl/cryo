@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ title }} — CRYO Report</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@page {
+    size: A4;
+    margin: 2cm 2.5cm 2.5cm 2.5cm;
+    @top-right {
+        content: "CRYO Research Report";
+        font-family: 'Inter', sans-serif;
+        font-size: 7pt;
+        color: #94a3b8;
+    }
+    @bottom-center {
+        content: counter(page) " / " counter(pages);
+        font-family: 'Inter', sans-serif;
+        font-size: 7pt;
+        color: #94a3b8;
+    }
+    @bottom-right {
+        content: "Confidential";
+        font-family: 'Inter', sans-serif;
+        font-size: 7pt;
+        color: #cbd5e1;
+    }
+}
+
+@page :first {
+    margin: 0;
+    @top-right { content: none; }
+    @bottom-center { content: none; }
+    @bottom-right { content: none; }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 10pt;
+    line-height: 1.65;
+    color: #1e293b;
+    background: #ffffff;
+}
+
+/* ─── COVER PAGE ─── */
+.cover {
+    page-break-after: always;
+    height: 297mm;
+    width: 210mm;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 100%);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4cm 3.5cm;
+    position: relative;
+    overflow: hidden;
+}
+.cover::before {
+    content: '';
+    position: absolute;
+    top: -100px;
+    right: -100px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(6,182,212,0.15) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.cover::after {
+    content: '';
+    position: absolute;
+    bottom: -150px;
+    left: -100px;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.cover-logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14pt;
+    font-weight: 700;
+    color: #06b6d4;
+    letter-spacing: 0.3em;
+    margin-bottom: 3cm;
+    position: relative;
+}
+.cover-logo span {
+    display: inline-block;
+    width: 28px;
+    height: 3px;
+    background: linear-gradient(90deg, #06b6d4, #10b981);
+    margin-left: 12px;
+    vertical-align: middle;
+    border-radius: 2px;
+}
+.cover h1 {
+    font-size: 28pt;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 1cm;
+    position: relative;
+    color: #f1f5f9;
+}
+.cover-subtitle {
+    font-size: 11pt;
+    font-weight: 300;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-bottom: 2cm;
+    max-width: 80%;
+    position: relative;
+}
+.cover-meta {
+    position: relative;
+    display: flex;
+    gap: 2cm;
+    font-size: 8pt;
+    color: #64748b;
+}
+.cover-meta-item {
+    border-left: 2px solid #06b6d4;
+    padding-left: 10px;
+}
+.cover-meta-label {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 6.5pt;
+    color: #475569;
+    margin-bottom: 2px;
+}
+.cover-meta-value {
+    color: #cbd5e1;
+    font-weight: 500;
+}
+.cover-footer {
+    position: absolute;
+    bottom: 2cm;
+    left: 3.5cm;
+    right: 3.5cm;
+    border-top: 1px solid #334155;
+    padding-top: 0.5cm;
+    font-size: 7pt;
+    color: #475569;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* ─── SUMMARY BOX ─── */
+.summary-box {
+    background: #f0fdfa;
+    border: 1px solid #99f6e4;
+    border-left: 4px solid #14b8a6;
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+}
+.summary-box h2 {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #0f766e;
+    margin-bottom: 8px;
+}
+.summary-box p {
+    font-size: 10pt;
+    color: #134e4a;
+    line-height: 1.7;
+}
+
+/* ─── SECTIONS ─── */
+.section {
+    margin-bottom: 28px;
+    page-break-inside: avoid;
+}
+.section h2 {
+    font-size: 14pt;
+    font-weight: 600;
+    color: #0f172a;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #06b6d4;
+    margin-bottom: 12px;
+    display: inline-block;
+}
+.section h3 {
+    font-size: 11pt;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 16px;
+    margin-bottom: 6px;
+}
+.section p {
+    margin-bottom: 8px;
+    text-align: justify;
+    hyphens: auto;
+}
+
+/* ─── KEY FINDINGS CARD ─── */
+.findings-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 16px 0;
+}
+.findings-card h3 {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6366f1;
+    margin-bottom: 10px;
+    margin-top: 0;
+}
+.findings-card ul {
+    margin: 0;
+    padding-left: 16px;
+}
+.findings-card li {
+    margin-bottom: 6px;
+    font-size: 9.5pt;
+    color: #334155;
+}
+
+/* ─── TABLES ─── */
+.table-wrap {
+    margin: 14px 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+}
+th {
+    background: #0f172a;
+    color: #06b6d4;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+td {
+    padding: 7px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+    vertical-align: top;
+}
+tr:nth-child(even) { background: #f8fafc; }
+
+/* ─── LISTS ─── */
+ul, ol {
+    margin: 8px 0 12px 20px;
+}
+li {
+    margin-bottom: 4px;
+    font-size: 9.5pt;
+}
+li::marker {
+    color: #06b6d4;
+}
+
+/* ─── REFERENCES ─── */
+.references {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+}
+.references h2 {
+    font-size: 11pt;
+    color: #64748b;
+    border-bottom-color: #94a3b8;
+}
+.references p, .references li {
+    font-size: 8.5pt;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* ─── CONFIDENCE BADGE ─── */
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 7.5pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.badge-high { background: #dcfce7; color: #166534; }
+.badge-moderate { background: #fef9c3; color: #854d0e; }
+.badge-low { background: #fee2e2; color: #991b1b; }
+
+/* ─── FOOTER ─── */
+.doc-footer {
+    margin-top: 32px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    text-align: center;
+}
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+    <div class="cover-logo">CRYO <span></span></div>
+    <h1>{{ title }}</h1>
+    <div class="cover-subtitle">{{ summary[:200] if summary else 'AI-generated research report compiled from PubMed, OpenTargets, ChEMBL, ClinVar, and CrossRef databases.' }}</div>
+    <div class="cover-meta">
+        <div class="cover-meta-item">
+            <div class="cover-meta-label">Generated</div>
+            <div class="cover-meta-value">{{ generated_date }}</div>
+        </div>
+        <div class="cover-meta-item">
+            <div class="cover-meta-label">Sections</div>
+            <div class="cover-meta-value">{{ sections|length }}</div>
+        </div>
+        <div class="cover-meta-item">
+            <div class="cover-meta-label">Platform</div>
+            <div class="cover-meta-value">CRYO Biology Research</div>
+        </div>
+    </div>
+    <div class="cover-footer">
+        <span>Comprehensive Research Yielding Outcomes</span>
+        <span>Data verified via multi-source cross-referencing</span>
+    </div>
+</div>
+
+<!-- EXECUTIVE SUMMARY -->
+{% if summary %}
+<div class="summary-box">
+    <h2>Executive Summary</h2>
+    <p>{{ summary }}</p>
+</div>
+{% endif %}
+
+<!-- SECTIONS -->
+{% for section in sections %}
+<div class="section">
+    <h2>{{ section.heading }}</h2>
+    {% if section.content is string %}
+        {% for para in section.content.split('\n\n') %}
+            {% if para.strip() %}
+                {% if para.strip().startswith('- ') or para.strip().startswith('* ') %}
+                    <ul>
+                    {% for line in para.strip().split('\n') %}
+                        {% if line.strip() %}
+                        <li>{{ line.strip().lstrip('- *') }}</li>
+                        {% endif %}
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>{{ para.strip() }}</p>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    {% elif section.content is iterable and section.content is not string %}
+        {% if section.content and section.content[0] is mapping %}
+            <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                    {% for key in section.content[0].keys() %}
+                        <th>{{ key }}</th>
+                    {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in section.content[:30] %}
+                    <tr>
+                    {% for key in section.content[0].keys() %}
+                        <td>{{ row[key]|string|truncate(80) }}</td>
+                    {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        {% else %}
+            <ul>
+            {% for item in section.content %}
+                <li>{{ item }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    {% endif %}
+</div>
+{% endfor %}
+
+<!-- FOOTER -->
+<div class="doc-footer">
+    Generated by CRYO — Comprehensive Research Yielding Outcomes<br>
+    Data sourced from PubMed, OpenTargets, ChEMBL, ClinVar, UniProt, CrossRef<br>
+    {{ generated_date }}
+</div>
+
+</body>
+</html>

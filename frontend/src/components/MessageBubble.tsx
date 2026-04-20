@@ -15,12 +15,12 @@ interface Props {
 // Detect report download links in the response
 function extractFileLinks(content: string): { url: string; filename: string; type: string }[] {
   const links: { url: string; filename: string; type: string }[] = []
-  const pattern = /\/api\/reports\/([a-zA-Z0-9_\-]+\.(pdf|xlsx|png|csv))/g
+  const pattern = /\/api\/reports\/([a-zA-Z0-9_\-]+\.(pdf|xlsx|png|csv|html))/g
   let match
   while ((match = pattern.exec(content)) !== null) {
     const filename = match[1]
     const ext = match[2]
-    const type = ext === 'pdf' ? 'PDF Report' : ext === 'xlsx' ? 'Excel Spreadsheet' : ext === 'png' ? 'Chart Image' : 'File'
+    const type = ext === 'pdf' ? 'PDF Report' : ext === 'html' ? 'Interactive Report' : ext === 'xlsx' ? 'Excel Spreadsheet' : ext === 'png' ? 'Chart Image' : 'File'
     links.push({ url: `/api/reports/${filename}`, filename, type })
   }
   return links

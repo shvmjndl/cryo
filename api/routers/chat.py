@@ -1,4 +1,3 @@
-import asyncio
 import json
 import uuid
 from typing import AsyncGenerator
@@ -174,9 +173,14 @@ async def list_tools(user: User = Depends(get_current_user)):
 # ─── Helpers ──────────────────────────────────────────────
 
 async def _get_user_conversation(db: AsyncSession, user_id: uuid.UUID, convo_id: str) -> Conversation:
+    try:
+        convo_uuid = uuid.UUID(convo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid conversation ID format")
+
     result = await db.execute(
         select(Conversation).where(
-            Conversation.id == uuid.UUID(convo_id),
+            Conversation.id == convo_uuid,
             Conversation.user_id == user_id,
         )
     )

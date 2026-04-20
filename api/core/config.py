@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env from project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
@@ -22,17 +21,9 @@ class Settings:
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
-    @property
-    def DATABASE_URL_SYNC(self) -> str:
-        return (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
-
     # API
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
-    API_SECRET_KEY: str = os.getenv("API_SECRET_KEY", "change-me")
     CORS_ORIGINS: list[str] = os.getenv(
         "API_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
     ).split(",")
@@ -44,12 +35,8 @@ class Settings:
 
     # Hermes
     HERMES_MODEL: str = os.getenv("HERMES_MODEL", "gemini-2.5-flash")
-    HERMES_VLM_MODEL: str = os.getenv("HERMES_VLM_MODEL", "gemini-2.5-flash")
     HERMES_PROVIDER: str = os.getenv("HERMES_PROVIDER", "gemini")
     HERMES_MAX_ITERATIONS: int = int(os.getenv("HERMES_MAX_ITERATIONS", "15"))
-
-    # Gemini
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
 
 settings = Settings()
