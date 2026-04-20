@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+venv/
+.venv/
+currentstate_*.json
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+.next/
+out/
+
+# Docker
+docker-data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Conda
+*.conda
+
+# Hermes
+hermes-agent/venv/
+hermes-agent/ui-tui/node_modules/
+hermes-agent/*.egg-info/
+~/.hermes/

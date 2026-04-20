@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  /* CRYO Biology Theme — dark with cyan/emerald accents */
+  --color-cryo-bg: #0a0e14;
+  --color-cryo-surface: #0f1419;
+  --color-cryo-surface-2: #151b23;
+  --color-cryo-surface-3: #1c2430;
+  --color-cryo-border: #1e2a3a;
+  --color-cryo-border-bright: #2a3a4e;
+  --color-cryo-text: #e0e6ed;
+  --color-cryo-text-dim: #6b7d93;
+  --color-cryo-text-muted: #3d4f63;
+  --color-cryo-accent: #00e5c7;
+  --color-cryo-accent-dim: #00b89e;
+  --color-cryo-cyan: #22d3ee;
+  --color-cryo-emerald: #34d399;
+  --color-cryo-purple: #a78bfa;
+  --color-cryo-amber: #fbbf24;
+  --color-cryo-red: #f87171;
+  --color-cryo-blue: #60a5fa;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Base */
+body {
+  background-color: var(--color-cryo-bg);
+  color: var(--color-cryo-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-cryo-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-cryo-border-bright); }
+
+/* DNA helix animation for loading */
+@keyframes helix-spin {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.animate-helix { animation: helix-spin 3s linear infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* Slash command dropdown */
+.slash-menu {
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-cryo-border-bright);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px var(--color-cryo-accent);
+}
+
+/* Message bubbles */
+.msg-user {
+  background: linear-gradient(135deg, var(--color-cryo-surface-2), var(--color-cryo-surface-3));
+  border-left: 2px solid var(--color-cryo-cyan);
+}
+
+.msg-assistant {
+  background: var(--color-cryo-surface);
+  border-left: 2px solid var(--color-cryo-accent);
+}
+
+/* Tool execution indicator */
+.tool-indicator {
+  background: var(--color-cryo-surface-2);
+  border: 1px solid var(--color-cryo-border);
+  border-left: 3px solid var(--color-cryo-purple);
+}
+
+/* Code blocks */
+pre code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
