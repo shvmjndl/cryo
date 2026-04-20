@@ -9,6 +9,7 @@ venv/
 .venv/
 currentstate_*.json
 .claude/
+cryo-data/
 
 # Environment
 .env

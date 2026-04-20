@@ -248,7 +248,7 @@ def _format_pdb_entry(data: dict, pdb_id: str) -> str:
         "method": data.get("exptl", [{}])[0].get("method", "") if data.get("exptl") else "",
         "resolution": data.get("rcsb_entry_info", {}).get("resolution_combined", [None])[0] if data.get("rcsb_entry_info", {}).get("resolution_combined") else None,
         "release_date": data.get("rcsb_accession_info", {}).get("initial_release_date", ""),
-        "polymer_entities": len(data.get("rcsb_entry_info", {}).get("polymer_entity_count_protein", 0) or []),
+        "polymer_entities": data.get("rcsb_entry_info", {}).get("polymer_entity_count_protein", 0) or 0,
         "url": f"https://www.rcsb.org/structure/{pdb_id}",
     })
 
