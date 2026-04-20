@@ -127,7 +127,8 @@ class HermesBridge:
         self, message: str, history: list[dict[str, str]] | None = None
     ) -> AsyncGenerator[dict[str, Any], None]:
         translated = translate_slash_command(message)
-        logger.info("Chat: original=%r translated=%r", message[:60], translated[:60])
+        logger.info("Chat: original=%r history=%d translated=%r",
+                    message[:60], len(history or []), translated[:60])
 
         chunks: list[str] = []
         tool_events: list[dict] = []
@@ -149,6 +150,15 @@ class HermesBridge:
         def _run():
             agent = self._get_agent()
 
+            # Build conversation history for Hermes (from our PostgreSQL messages)
+            conversation_history = []
+            if history:
+                for msg in history:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role in ("user", "assistant") and content:
+                        conversation_history.append({"role": role, "content": content})
+
             # Add report format instructions for report queries
             prefix = ""
             if any(kw in translated.lower() for kw in ["report about", "research report", "compile_report"]):
@@ -160,7 +170,14 @@ class HermesBridge:
                 "Don't repeat the same tool call.\n\n"
                 f"{translated}"
             )
-            return agent.chat(full_message, stream_callback=on_delta)
+
+            # Use run_conversation with history so agent has context from prior messages
+            result = agent.run_conversation(
+                full_message,
+                conversation_history=conversation_history if conversation_history else None,
+                stream_callback=on_delta,
+            )
+            return result.get("final_response", "")
 
         future = loop.run_in_executor(None, _run)
 
