@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import {
-  BookOpen, Dna, Pill, FileSearch, FlaskConical, GitBranch, Download, Scale
+  BookOpen, Dna, Pill, FileSearch, FlaskConical, GitBranch, Download, Scale,
+  FileText, BarChart3
 } from 'lucide-react'
 
 export interface SlashCommand {
@@ -22,6 +23,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   '/pathway': <GitBranch className="w-4 h-4" />,
   '/compare': <Scale className="w-4 h-4" />,
   '/export': <Download className="w-4 h-4" />,
+  '/report': <FileText className="w-4 h-4" />,
+  '/chart': <BarChart3 className="w-4 h-4" />,
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -37,6 +40,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   '/pathway': 'text-[var(--color-cryo-cyan)]',
   '/compare': 'text-[var(--color-cryo-text-dim)]',
   '/export': 'text-[var(--color-cryo-text-dim)]',
+  '/report': 'text-[var(--color-cryo-red)]',
+  '/chart': 'text-[var(--color-cryo-amber)]',
 }
 
 interface Props {

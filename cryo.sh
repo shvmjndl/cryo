@@ -1,0 +1,1 @@
+docker compose down && docker compose up -d && docker logs cryo-api-1 -f

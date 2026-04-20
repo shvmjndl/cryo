@@ -11,10 +11,12 @@ const DEFAULT_COMMANDS: SlashCommand[] = [
   { command: '/targets', description: 'Disease-target associations', example: '/targets glioblastoma' },
   { command: '/variant', description: 'Variant clinical significance', example: '/variant rs28934578' },
   { command: '/vep', description: 'Variant effect prediction', example: '/vep 17:7675088:C:T' },
-  { command: '/repurpose', description: 'Find drug repurposing candidates', example: '/repurpose Huntington disease' },
+  { command: '/repurpose', description: 'Drug repurposing candidates', example: '/repurpose Huntington disease' },
   { command: '/pathway', description: 'Explore biological pathways', example: '/pathway p53 signaling' },
   { command: '/compare', description: 'Compare genes/proteins/drugs', example: '/compare BRCA1 BRCA2' },
-  { command: '/export', description: 'Export results to CSV/JSON', example: '/export last' },
+  { command: '/export', description: 'Export data to Excel', example: '/export TP53 variants' },
+  { command: '/report', description: 'Generate PDF report', example: '/report glioblastoma drug targets' },
+  { command: '/chart', description: 'Generate visualization', example: '/chart cancer mutation frequency' },
 ]
 
 interface Props {

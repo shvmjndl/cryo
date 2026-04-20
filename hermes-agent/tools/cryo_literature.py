@@ -97,7 +97,7 @@ def _pubmed_search(args: dict, **kw) -> str:
     # Step 3: Fetch abstracts via EFetch
     fetch_params = {
         "db": "pubmed",
-        "id": ",".join(id_list[:5]),
+        "id": ",".join(id_list[:3]),
         "retmode": "xml",
         "rettype": "abstract",
     }
@@ -111,7 +111,7 @@ def _pubmed_search(args: dict, **kw) -> str:
             for i, abstract in enumerate(abstracts[:len(papers)]):
                 # Strip XML tags
                 clean = re.sub(r"<[^>]+>", "", abstract).strip()
-                papers[i]["abstract"] = clean[:800]
+                papers[i]["abstract"] = clean[:400]
     except Exception as e:
         logger.warning("Failed to fetch abstracts: %s", e)
 
@@ -192,7 +192,7 @@ def _biorxiv_search(args: dict, **kw) -> str:
                 "authors": item.get("authors", ""),
                 "date": item.get("date", ""),
                 "category": item.get("category", ""),
-                "abstract": abstract[:600],
+                "abstract": abstract[:300],
                 "url": f"https://www.biorxiv.org/content/{item.get('doi', '')}",
             })
 

@@ -1,3 +1,4 @@
+# Core API
 fastapi==0.136.0
 uvicorn[standard]==0.34.3
 sqlalchemy[asyncio]==2.0.41
@@ -7,3 +8,8 @@ python-dotenv==1.2.2
 bcrypt==4.3.0
 PyJWT==2.12.1
 httpx==0.28.1
+
+# Report generation
+reportlab==4.4.0
+openpyxl==3.1.5
+matplotlib==3.10.3

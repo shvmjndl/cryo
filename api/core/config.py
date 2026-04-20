@@ -44,8 +44,9 @@ class Settings:
 
     # Hermes
     HERMES_MODEL: str = os.getenv("HERMES_MODEL", "gemini-2.5-flash")
+    HERMES_VLM_MODEL: str = os.getenv("HERMES_VLM_MODEL", "gemini-2.5-flash")
     HERMES_PROVIDER: str = os.getenv("HERMES_PROVIDER", "gemini")
-    HERMES_MAX_ITERATIONS: int = int(os.getenv("HERMES_MAX_ITERATIONS", "90"))
+    HERMES_MAX_ITERATIONS: int = int(os.getenv("HERMES_MAX_ITERATIONS", "15"))
 
     # Gemini
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")

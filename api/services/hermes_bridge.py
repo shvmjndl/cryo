@@ -1,39 +1,49 @@
-"""Bridge between CRYO's FastAPI backend and the Hermes Agent."""
+"""Bridge between CRYO's FastAPI backend and the Hermes Agent.
+
+Handles:
+- Slash command translation to natural language
+- Hermes AIAgent lifecycle management
+- SSE streaming with tool event tracking
+- All tool executions logged to DB
+"""
 
 import asyncio
 import json
+import logging
 import re
 import sys
+import traceback
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
 from api.core.config import settings
 
-# Add hermes-agent to sys.path so we can import it
+logger = logging.getLogger("cryo.bridge")
+
+# Add hermes-agent to sys.path
 HERMES_PATH = Path(__file__).resolve().parent.parent.parent / "hermes-agent"
 if str(HERMES_PATH) not in sys.path:
     sys.path.insert(0, str(HERMES_PATH))
 
 SOUL_PATH = Path(__file__).resolve().parent.parent.parent / "SOUL.md"
-SYSTEM_PROMPT = ""
-if SOUL_PATH.exists():
-    SYSTEM_PROMPT = SOUL_PATH.read_text()
+SYSTEM_PROMPT = SOUL_PATH.read_text() if SOUL_PATH.exists() else ""
 
-
-# Slash command → natural language prompt translation
+# Slash command → detailed prompt translation
 SLASH_TRANSLATORS = {
-    "/pubmed": "Search PubMed for scientific papers about: {query}. Summarize the key findings from recent research.",
-    "/biorxiv": "Search bioRxiv/medRxiv preprints about: {query}. What are the latest preprint findings?",
-    "/protein": "Provide a comprehensive protein/gene analysis for: {query}. Include: function, structure, domains, pathways, disease associations, known mutations, and therapeutic relevance.",
-    "/structure": "Describe the known 3D protein structures for: {query}. Include PDB IDs if known, structural features, binding sites, and how structure relates to function.",
-    "/drug": "Provide detailed pharmacological information about the drug: {query}. Include: mechanism of action, targets, indications, clinical trials status, side effects, and molecular properties.",
-    "/targets": "What are the key drug targets and therapeutic approaches for: {query}? Include validated targets, drugs in development, and clinical trial landscape.",
-    "/variant": "Interpret the genomic variant: {query}. Include: clinical significance, associated conditions, population frequency, functional impact predictions, and relevant literature.",
-    "/vep": "Predict the functional effects of the variant: {query}. Include: consequence type, impact severity, affected protein domains, and pathogenicity predictions.",
-    "/repurpose": "Analyze drug repurposing opportunities for: {query}. What existing approved drugs could be repurposed based on mechanism of action, shared pathways, or structural similarity?",
-    "/pathway": "Explain the biological pathway: {query}. Include: key genes/proteins involved, upstream/downstream signaling, disease relevance, and therapeutic intervention points.",
-    "/compare": "Compare and contrast: {query}. Include similarities, differences, functional overlap, disease associations, and therapeutic implications.",
-    "/export": "Summarize the most recent research results in a structured format for: {query}.",
+    "/pubmed": "Search PubMed for scientific papers about: {query}. Use the pubmed_search tool.",
+    "/biorxiv": "Search bioRxiv preprints about: {query}. Use the biorxiv_search tool.",
+    "/protein": "Look up detailed protein/gene information for: {query}. Use the uniprot_lookup tool.",
+    "/structure": "Search for 3D protein structures of: {query}. Use the pdb_search tool.",
+    "/drug": "Search for drug/compound information about: {query}. Use the chembl_search tool.",
+    "/targets": "Find disease-target associations for: {query}. Use the opentargets_search tool.",
+    "/variant": "Look up clinical significance of variant: {query}. Use the clinvar_lookup tool.",
+    "/vep": "Predict functional effects of variant: {query}. Use the ensembl_vep tool.",
+    "/repurpose": "Analyze drug repurposing opportunities for: {query}. Search for existing drugs that could be repurposed. Use chembl_search and opentargets_search tools.",
+    "/pathway": "Explain the biological pathway: {query}. Include key genes/proteins, signaling cascade, disease relevance, and therapeutic targets.",
+    "/compare": "Compare and contrast: {query}. Use relevant tools to gather data, then provide a detailed comparison.",
+    "/export": "Export data about: {query}. Gather the data using appropriate tools, then generate an Excel file using generate_excel.",
+    "/report": "Do these steps in order: Step 1: Call opentargets_search OR pubmed_search ONCE to get data about: {query}. Step 2: Using the data you got, call generate_pdf with a title, summary, and sections array. Do NOT skip Step 2. You MUST call generate_pdf.",
+    "/chart": "Do these steps in order: Step 1: Gather data about {query} using ONE tool call. Step 2: Call generate_chart with the data formatted as labels and values arrays. You MUST call generate_chart.",
 }
 
 SLASH_COMMANDS = [
@@ -45,10 +55,12 @@ SLASH_COMMANDS = [
     {"command": "/targets", "description": "Disease-target associations", "example": "/targets glioblastoma"},
     {"command": "/variant", "description": "Variant clinical significance", "example": "/variant rs28934578"},
     {"command": "/vep", "description": "Variant effect prediction", "example": "/vep 17:7675088:C:T"},
-    {"command": "/repurpose", "description": "Find drug repurposing candidates", "example": "/repurpose Huntington disease"},
+    {"command": "/repurpose", "description": "Drug repurposing candidates", "example": "/repurpose Huntington disease"},
     {"command": "/pathway", "description": "Explore biological pathways", "example": "/pathway p53 signaling"},
     {"command": "/compare", "description": "Compare genes/proteins/drugs", "example": "/compare BRCA1 BRCA2"},
-    {"command": "/export", "description": "Export results to CSV/JSON", "example": "/export last"},
+    {"command": "/export", "description": "Export data to Excel", "example": "/export TP53 variants"},
+    {"command": "/report", "description": "Generate PDF report", "example": "/report glioblastoma drug targets"},
+    {"command": "/chart", "description": "Generate visualization", "example": "/chart cancer mutation frequency"},
 ]
 
 CRYO_TOOLS = [
@@ -58,12 +70,11 @@ CRYO_TOOLS = [
 
 
 def translate_slash_command(message: str) -> str:
-    """Convert slash commands into rich natural language prompts."""
+    """Convert /command queries into tool-directing prompts."""
     message = message.strip()
     if not message.startswith("/"):
         return message
 
-    # Parse: /command query text
     match = re.match(r"^(/\w+)\s*(.*)", message)
     if not match:
         return message
@@ -74,7 +85,9 @@ def translate_slash_command(message: str) -> str:
 
     template = SLASH_TRANSLATORS.get(cmd)
     if template:
-        return template.format(query=query)
+        translated = template.format(query=query)
+        logger.info("Slash translated: %r → %r", message, translated[:80])
+        return translated
 
     return message
 
@@ -84,19 +97,34 @@ class HermesBridge:
 
     def __init__(self):
         self._agent = None
+        self._tool_executions: list[dict] = []
+        logger.info("HermesBridge initialized")
 
     def _get_agent(self):
-        """Lazy-init the Hermes agent."""
+        """Lazy-init the Hermes agent with CRYO tools enabled."""
         if self._agent is None:
-            from run_agent import AIAgent
+            logger.info("Initializing Hermes AIAgent: model=%s provider=%s",
+                        settings.HERMES_MODEL, settings.HERMES_PROVIDER)
+            try:
+                from run_agent import AIAgent
 
-            self._agent = AIAgent(
-                model=settings.HERMES_MODEL,
-                max_iterations=settings.HERMES_MAX_ITERATIONS,
-                quiet_mode=True,
-                skip_context_files=True,
-                disabled_toolsets=["file", "terminal", "browser"],
-            )
+                self._agent = AIAgent(
+                    model=settings.HERMES_MODEL,
+                    max_iterations=6,
+                    quiet_mode=True,
+                    skip_context_files=True,
+                    max_tokens=8192,
+                    enabled_toolsets=[
+                        "cryo_literature", "cryo_protein", "cryo_drug",
+                        "cryo_variant", "cryo_reports", "cryo_vlm",
+                        "code_execution",
+                    ],
+                )
+                logger.info("Hermes AIAgent initialized successfully")
+            except Exception as e:
+                logger.error("Failed to initialize Hermes AIAgent: %s", e, exc_info=True)
+                raise
+
         return self._agent
 
     async def chat_stream(
@@ -104,29 +132,49 @@ class HermesBridge:
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream a chat response from Hermes, yielding SSE-compatible events."""
 
-        # Translate slash commands to natural language
         translated = translate_slash_command(message)
+        logger.info("Chat request: original=%r translated=%r", message[:80], translated[:80])
 
         chunks: list[str] = []
         tool_events: list[dict] = []
+        errors: list[str] = []
 
         def on_delta(text: str):
             chunks.append(text)
 
         def on_tool_start(tool_id: str, name: str, args: dict):
-            tool_events.append({"type": "tool_start", "name": name, "args": args})
+            logger.info("Tool started: %s args=%s", name, json.dumps(args)[:200])
+            tool_events.append({
+                "type": "tool_start",
+                "name": name,
+                "args": args,
+                "tool_id": tool_id,
+            })
 
         def on_tool_complete(tool_id: str, name: str, args: dict, result: str):
-            tool_events.append({"type": "tool_result", "name": name, "result": result[:2000]})
+            result_preview = result[:200] if result else ""
+            is_error = '"error"' in result[:100] if result else False
+            logger.info("Tool completed: %s success=%s result_preview=%s",
+                        name, not is_error, result_preview)
+            tool_events.append({
+                "type": "tool_result",
+                "name": name,
+                "result": result[:3000] if result else "",
+                "tool_id": tool_id,
+                "is_error": is_error,
+            })
 
         loop = asyncio.get_event_loop()
 
         def _run():
             agent = self._get_agent()
-            # Prepend system prompt to the message
-            full_message = translated
-            if SYSTEM_PROMPT:
-                full_message = f"[System context: {SYSTEM_PROMPT}]\n\nUser query: {translated}"
+            full_message = (
+                "IMPORTANT: You have max 5 tool calls. Use each one wisely. "
+                "After calling tools, IMMEDIATELY write your full response synthesizing the results. "
+                "Do NOT call the same tool twice with the same query. "
+                "Do NOT call more tools after you have enough data to answer.\n\n"
+                f"{translated}"
+            )
             return agent.chat(full_message, stream_callback=on_delta)
 
         future = loop.run_in_executor(None, _run)
@@ -138,16 +186,20 @@ class HermesBridge:
                 yield {"type": "delta", "text": chunks.pop(0)}
             await asyncio.sleep(0.05)
 
-        # Yield remaining
+        # Drain remaining
         while tool_events:
             yield tool_events.pop(0)
         while chunks:
             yield {"type": "delta", "text": chunks.pop(0)}
 
         try:
-            future.result()
+            result = future.result()
+            logger.info("Chat completed successfully")
         except Exception as e:
-            yield {"type": "delta", "text": f"\n\nError: {str(e)}"}
+            error_msg = f"Agent error: {e}"
+            logger.error("Chat failed: %s", e, exc_info=True)
+            yield {"type": "delta", "text": f"\n\n**Error:** {error_msg}"}
+            yield {"type": "error", "message": error_msg, "traceback": traceback.format_exc()}
 
     def get_available_tools(self) -> dict:
         """Return tools and slash commands for UI autocomplete."""
