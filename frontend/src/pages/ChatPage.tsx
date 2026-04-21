@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Dna } from 'lucide-react'
+import { Dna, Eye } from 'lucide-react'
 import Sidebar from '../components/Sidebar'
 import ChatInput from '../components/ChatInput'
 import MessageBubble from '../components/MessageBubble'
@@ -39,6 +39,7 @@ export default function ChatPage({ user, onLogout }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [streaming, setStreaming] = useState(false)
   const [streamText, setStreamText] = useState('')
+  const [bionicMode, setBionicMode] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // Load conversations
@@ -151,9 +152,25 @@ export default function ChatPage({ user, onLogout }: Props) {
               }
             </span>
           </div>
-          <span className="text-xs font-mono text-[var(--color-cryo-text-muted)]">
-            gemini-2.5-flash
-          </span>
+          <div className="flex items-center gap-3">
+            {import.meta.env.VITE_BIONIC_READING !== 'false' && (
+            <button
+              onClick={() => setBionicMode(!bionicMode)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                bionicMode
+                  ? 'bg-[var(--color-cryo-accent)]/15 text-[var(--color-cryo-accent)] border border-[var(--color-cryo-accent)]/30'
+                  : 'text-[var(--color-cryo-text-muted)] hover:text-[var(--color-cryo-text-dim)] border border-transparent hover:border-[var(--color-cryo-border)]'
+              }`}
+              title="Bionic Reading — bolds first half of each word for faster reading"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Bionic
+            </button>
+            )}
+            <span className="text-xs font-mono text-[var(--color-cryo-text-muted)]">
+              LLM powered
+            </span>
+          </div>
         </div>
 
         {/* Messages */}
@@ -188,7 +205,7 @@ export default function ChatPage({ user, onLogout }: Props) {
           )}
 
           {messages.map(msg => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble key={msg.id} message={msg} bionicMode={bionicMode} />
           ))}
 
           {/* Streaming indicator */}
@@ -199,6 +216,7 @@ export default function ChatPage({ user, onLogout }: Props) {
                 role: 'assistant',
                 content: streamText + '...',
               }}
+              bionicMode={bionicMode}
             />
           )}
 

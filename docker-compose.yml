@@ -53,6 +53,7 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file: .env
     environment:
       VITE_API_URL: http://api:8000
     volumes:

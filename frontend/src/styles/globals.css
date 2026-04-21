@@ -77,8 +77,86 @@ body {
   border-left: 3px solid var(--color-cryo-purple);
 }
 
+/* ─── Markdown Content Styling ─── */
+.cryo-markdown {
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+/* Remove extra margin from first/last elements */
+.cryo-markdown > *:first-child { margin-top: 0; }
+.cryo-markdown > *:last-child { margin-bottom: 0; }
+
 /* Code blocks */
-pre code {
+.cryo-markdown pre {
+  background: var(--color-cryo-bg);
+  border: 1px solid var(--color-cryo-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
+.cryo-markdown pre code {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  color: var(--color-cryo-cyan);
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.cryo-markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+/* Tables */
+.cryo-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.cryo-markdown tr:nth-child(even) {
+  background: var(--color-cryo-surface-2);
+}
+
+/* Nested lists */
+.cryo-markdown ul ul,
+.cryo-markdown ol ol,
+.cryo-markdown ul ol,
+.cryo-markdown ol ul {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  margin-left: 16px;
+}
+
+/* Blockquote nested paragraphs */
+.cryo-markdown blockquote p {
+  margin-bottom: 0;
+}
+
+/* Bold in headings */
+.cryo-markdown h2 strong,
+.cryo-markdown h3 strong {
+  color: inherit;
+}
+
+/* Citation superscripts */
+.cryo-markdown sup {
+  font-size: 0.6rem;
+  color: var(--color-cryo-accent);
+  font-weight: 600;
+}
+
+/* ─── Bionic Reading Mode ─── */
+.bionic-bold {
+  font-weight: 600;
+  color: var(--color-cryo-text);
+}
+
+.bionic-light {
+  font-weight: 400;
+  opacity: 0.7;
 }
