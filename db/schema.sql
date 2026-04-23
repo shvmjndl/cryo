@@ -402,6 +402,45 @@ CREATE INDEX idx_knowledge_target ON knowledge_edges(target_type, target_id);
 CREATE INDEX idx_knowledge_relation ON knowledge_edges(relation);
 
 -- ═══════════════════════════════════════════════════════════
+-- WORKSPACES
+-- ═══════════════════════════════════════════════════════════
+CREATE TABLE workspaces (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL DEFAULT 'Research Workspace',
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_workspaces_user ON workspaces(user_id);
+
+CREATE TABLE workspace_nodes (
+    id              TEXT NOT NULL,        -- node-1, node-2 etc (React Flow id)
+    workspace_id    UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+    parent_node_id  TEXT,                 -- parent node for branching
+    title           TEXT NOT NULL DEFAULT 'New Research',
+    position_x      REAL NOT NULL DEFAULT 0,
+    position_y      REAL NOT NULL DEFAULT 0,
+    width           REAL DEFAULT 400,
+    minimized       BOOLEAN DEFAULT FALSE,
+    branch_context  TEXT,                 -- context text from parent response
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (workspace_id, id)
+);
+
+CREATE TABLE workspace_edges (
+    id              TEXT NOT NULL,
+    workspace_id    UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    source_node_id  TEXT NOT NULL,
+    target_node_id  TEXT NOT NULL,
+    label           TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (workspace_id, id)
+);
+
+-- ═══════════════════════════════════════════════════════════
 -- ACTIVITY LOG
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE activity_log (

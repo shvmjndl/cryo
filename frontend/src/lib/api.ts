@@ -54,3 +54,15 @@ export const chat = {
     })
   },
 }
+
+// Workspace
+export const workspace = {
+  list: () => request('/workspace/list'),
+  get: (id: string) => request(`/workspace/${id}`),
+  create: () => request('/workspace/create', { method: 'POST' }),
+  save: (id: string, data: { nodes: any[]; edges: any[] }) =>
+    request(`/workspace/${id}/save`, { method: 'POST', body: JSON.stringify(data) }),
+  rename: (id: string, name: string) =>
+    request(`/workspace/${id}?name=${encodeURIComponent(name)}`, { method: 'PATCH' }),
+  remove: (id: string) => request(`/workspace/${id}`, { method: 'DELETE' }),
+}

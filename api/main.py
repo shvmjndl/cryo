@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from api.core.config import settings
 from api.core.database import engine, Base
 from api.core.logging_config import setup_logging
-from api.routers import auth, chat
+from api.routers import auth, chat, workspace
 
 setup_logging(os.getenv("LOG_LEVEL", "INFO"))
 
@@ -51,6 +51,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(workspace.router, prefix="/api")
 
 
 @app.get("/api/health")

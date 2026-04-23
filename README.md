@@ -1,6 +1,6 @@
 # CRYO — Comprehensive Research Yielding Outcomes
 
-AI-powered biology research platform. Mine literature, annotate proteins, repurpose drugs, interpret genomic variants, generate interactive research reports — all from one chat interface.
+AI-powered biology research platform with multi-canvas workspace. Mine literature, annotate proteins, repurpose drugs, interpret genomic variants, generate interactive research reports — branch and explore like a research flowchart.
 
 Built on [Hermes Agent](https://github.com/nousresearch/hermes-agent) with 18 custom biology tools, powered by Gemini 3 Pro Preview.
 
@@ -15,251 +15,168 @@ open http://localhost:3000
 
 Default superuser: `creator@cryo.in` / `creator@shivam0705`
 
+## Two Interfaces
+
+### Chat View (`/`)
+Traditional single-thread chat with sidebar conversation history, slash commands, streaming responses, and file download cards.
+
+### Workspace View (`/workspace`)
+Multi-canvas research workspace built on React Flow:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ CRYO Workspace                                    [+ New Node]  │
+│                                                                  │
+│ ┌──────────────┐         ┌──────────────┐                       │
+│ │ 🧬 EGFR       │────────▶│ 🔬 Osimertinib│                      │
+│ │ protein info  │         │ drug info     │                      │
+│ │              │         │               │   ┌──────────────┐   │
+│ │ [messages]   │         │ [messages]    │──▶│ 📋 Report:    │   │
+│ │ [/commands]  │         │ [Branch btn]  │   │ EGFR in NSCLC │   │
+│ └──────────────┘         └──────────────┘   └──────────────┘   │
+│                                                                  │
+│ Pan: drag background · Zoom: scroll · Resize: drag node corner  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Features:**
+- **Multiple research nodes** — each is an independent chat with its own conversation
+- **Branching** — hover any assistant response → click Branch → spawns connected child node with context
+- **Resizable nodes** — drag bottom-right corner
+- **Slash commands** in every node (`/pubmed`, `/protein`, `/drug`, `/report`, etc.)
+- **Collapsible panels** — left (workspace list) and right (node list), draggable width
+- **Multiple workspaces** — create, switch, rename, delete (max 10 per user, max 50 nodes per workspace)
+- **Persistent** — nodes, positions, edges, conversations all saved to PostgreSQL
+- **Messages reload** — refresh page → messages load from conversation history
+- **Visual connections** — animated cyan arrows between branched nodes
+- **Minimap** — overview of all nodes in corner
+- **Pan/zoom** — infinite canvas with dot grid background
+
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                       BROWSER (localhost:3000)                        │
-│  React 19 · TypeScript · Tailwind 4 · Vite 6                        │
-│  ┌────────────┐  ┌──────────────────┐  ┌──────────────────────────┐  │
-│  │  Auth Page  │  │    Chat Page     │  │     Slash Menu           │  │
-│  │  Login/     │  │  SSE streaming   │  │  14 commands with icons  │  │
-│  │  Signup     │  │  Markdown render │  │  /pubmed /protein /drug  │  │
-│  └────────────┘  │  File downloads  │  │  /variant /report /chart │  │
-│                   │  Tool indicators │  │  Arrow nav, fuzzy filter │  │
-│                   └──────────────────┘  └──────────────────────────┘  │
-└───────────────────────────┬──────────────────────────────────────────┘
-                            │ HTTP + SSE (Vite proxy → api:8000)
-┌───────────────────────────▼──────────────────────────────────────────┐
-│                    FastAPI Backend (localhost:8000)                    │
-│                                                                       │
-│  ┌─ Routers ──────────────┐  ┌─ Services ────────────────────────┐   │
-│  │ /api/auth/*             │  │ HermesBridge                      │   │
-│  │   POST /signup          │  │   Slash command → prompt translate │   │
-│  │   POST /login           │  │   Conversation history from PG    │   │
-│  │   GET  /me              │  │   :::block format injection       │   │
-│  │                         │  │   SSE streaming with tool events  │   │
-│  │ /api/chat/*             │  │                                   │   │
-│  │   GET  /conversations   │  │ Report Engine v4                  │   │
-│  │   GET  /messages        │  │   Markdown parser (:::blocks)     │   │
-│  │   POST /send (SSE)      │  │   Plotly.js chart builder         │   │
-│  │   GET  /tools           │  │   Mermaid.js diagram renderer     │   │
-│  │                         │  │   Sortable table generator        │   │
-│  │ /api/reports/{file}     │  │   Callout/progress/timeline       │   │
-│  │   Serves HTML/Excel/PNG │  │   Full HTML template assembly     │   │
-│  │                         │  │                                   │   │
-│  │ /api/health             │  │ Structured Logging (cryo.*)       │   │
-│  └─────────────────────────┘  └───────────────────────────────────┘   │
-│                                                                       │
-│  ┌─ Auth ───────────┐  ┌─ Config ─────────────────────────────────┐  │
-│  │ JWT (HS256)       │  │ All from .env                            │  │
-│  │ bcrypt passwords  │  │ GEMINI_API_KEY · HERMES_MODEL            │  │
-│  │ Bearer tokens     │  │ CRYO_DATA_DIR · POSTGRES_* · JWT_*       │  │
-│  └───────────────────┘  └─────────────────────────────────────────┘  │
-└──────────┬──────────────────────────────────┬────────────────────────┘
-           │                                  │
-┌──────────▼──────────┐         ┌─────────────▼───────────────────────┐
-│   PostgreSQL 17     │         │   Hermes Agent (in-process)          │
-│   20+ tables        │         │   Model: gemini-3-pro-preview        │
-│                     │         │   Max tokens: 32K · Iterations: 15   │
-│  Auth & Chat:       │         │                                      │
-│   users, api_keys   │         │  ┌─ 18 CRYO Tools (9 toolsets) ───┐ │
-│   conversations     │         │  │                                 │ │
-│   messages          │         │  │  Literature:                    │ │
-│                     │         │  │   pubmed_search · biorxiv_search│ │
-│  Biology Modules:   │         │  │   fetch_citation                │ │
-│   papers            │         │  │                                 │ │
-│   genes, proteins   │         │  │  Protein:                      │ │
-│   drugs, diseases   │         │  │   uniprot_lookup · pdb_search   │ │
-│   variants          │         │  │                                 │ │
-│   drug_targets      │         │  │  Drug:                         │ │
-│   repurpose_cand.   │         │  │   chembl_search                │ │
-│                     │         │  │   opentargets_search            │ │
-│  Cross-Module:      │         │  │                                 │ │
-│   knowledge_edges   │         │  │  Variant:                      │ │
-│   activity_log      │         │  │   clinvar_lookup · ensembl_vep  │ │
-│                     │         │  │                                 │ │
-│  Extensions:        │         │  │  Reports:                      │ │
-│   uuid-ossp         │         │  │   compile_report · get_last_   │ │
-│   pg_trgm           │         │  │   report · generate_excel ·    │ │
-│   btree_gin         │         │  │   generate_chart               │ │
-│                     │         │  │                                 │ │
-└─────────────────────┘         │  │  Advanced:                     │ │
-                                │  │   verify_claim (Co-Sight)       │ │
-┌─────────────────────┐         │  │   analyze_image_vlm             │ │
-│  cryo-data/         │         │  │   deep_research                 │ │
-│  (bind-mounted)     │         │  │   multi_agent_research          │ │
-│                     │         │  │   scientific_skill              │ │
-│  users/{uid}/       │         │  └─────────────────────────────────┘ │
-│   conversations/    │         │                                      │
-│    {cid}/           │         │  Conversation history from PG ──────┐│
-│     reports/*.html  │         │  (run_conversation with history)    ││
-│     sources/*.json  │         └────────────────────────────────────┘│
-│                     │                                                │
-│  Max 50 convos/user │                                                │
-│  Auto-cleanup       │                                                │
-└─────────────────────┘                                                │
+┌──────────────────────────────────────────────────────────────────┐
+│                    BROWSER (localhost:3000)                        │
+│  React 19 · TypeScript · Tailwind 4 · Vite 6 · React Flow 12    │
+│                                                                    │
+│  ┌─ Chat View ──────────┐  ┌─ Workspace View ──────────────────┐ │
+│  │ Sidebar + ChatPage   │  │ React Flow canvas                  │ │
+│  │ Single conversation  │  │ ChatNode components (mini chats)   │ │
+│  │ SlashMenu component  │  │ Branching, resize, pan/zoom        │ │
+│  │ MessageBubble (md)   │  │ Workspace persistence (PG)         │ │
+│  │ Bionic reading toggle│  │ Left panel: workspace list          │ │
+│  └──────────────────────┘  │ Right panel: node list              │ │
+│                             └────────────────────────────────────┘ │
+└───────────────────────────┬──────────────────────────────────────┘
+                            │ HTTP + SSE
+┌───────────────────────────▼──────────────────────────────────────┐
+│                    FastAPI Backend (localhost:8000)                 │
+│                                                                    │
+│  /api/auth/*          JWT auth (signup, login, me)                 │
+│  /api/chat/*          Conversations, SSE streaming, tools list     │
+│  /api/workspace/*     List, create, get, save, rename, delete      │
+│  /api/reports/*       Serve generated HTML/Excel/PNG               │
+│  /api/health          Health check                                 │
+│                                                                    │
+│  HermesBridge         Slash translation, conversation history,     │
+│                       report format injection, per-request agent   │
+│  Report Engine v4     Markdown → interactive HTML (Plotly, Mermaid, │
+│                       callouts, timelines, progress bars, tables)  │
+└──────────┬───────────────────────────────┬───────────────────────┘
+           │                               │
+┌──────────▼──────────┐      ┌─────────────▼──────────────────────┐
+│   PostgreSQL 17     │      │   Hermes Agent (per-request)        │
+│                     │      │   gemini-3-pro-preview · 32K tokens │
+│  users, api_keys    │      │                                     │
+│  conversations      │      │  18 CRYO Tools:                     │
+│  messages           │      │   pubmed_search · biorxiv_search    │
+│  workspaces         │      │   fetch_citation · uniprot_lookup   │
+│  workspace_nodes    │      │   pdb_search · chembl_search        │
+│  workspace_edges    │      │   opentargets_search                │
+│  papers, genes      │      │   clinvar_lookup · ensembl_vep      │
+│  proteins, drugs    │      │   compile_report · get_last_report  │
+│  variants           │      │   generate_excel · generate_chart   │
+│  knowledge_edges    │      │   verify_claim · analyze_image_vlm  │
+│                     │      │   deep_research                     │
+└─────────────────────┘      │   multi_agent_research              │
+                              │   scientific_skill                  │
+┌─────────────────────┐      └─────────────────────────────────────┘
+│  cryo-data/         │
+│  (bind-mounted)     │
+│  users/{uid}/       │
+│   conversations/    │
+│    {cid}/           │
+│     reports/*.html  │
+│     sources/*.json  │
+└─────────────────────┘
 ```
 
-## How It Works
+## 18 Tools
 
-### 1. Chat Query
-User types `/report EGFR mutations in lung cancer` in the browser.
+| Tool | Source | What It Does |
+|------|--------|-------------|
+| `pubmed_search` | NCBI E-utilities | Search papers, PMIDs, abstracts |
+| `biorxiv_search` | bioRxiv API | Search preprints |
+| `fetch_citation` | CrossRef + PubMed | APA/MLA/Chicago citations |
+| `uniprot_lookup` | UniProt REST | Protein function, domains, GO terms |
+| `pdb_search` | RCSB PDB | 3D structures |
+| `chembl_search` | ChEMBL REST | Drug properties, SMILES, approval |
+| `opentargets_search` | OpenTargets GraphQL | Disease-target associations |
+| `clinvar_lookup` | ClinVar/NCBI | Variant pathogenicity |
+| `ensembl_vep` | Ensembl REST | SIFT/PolyPhen variant effects |
+| `compile_report` | Report Engine v4 | Markdown → interactive HTML report |
+| `get_last_report` | Disk | Retrieve raw markdown for editing |
+| `generate_excel` | openpyxl | Multi-sheet spreadsheets |
+| `generate_chart` | matplotlib | Standalone chart PNGs |
+| `verify_claim` | Multi-source | Cross-check claims (PubMed + OpenTargets + CrossRef) |
+| `analyze_image_vlm` | Gemini Vision | Analyze microscopy, gels, structures |
+| `deep_research` | gpt-researcher | Autonomous deep research |
+| `multi_agent_research` | open_deep_research | Multi-agent research |
+| `scientific_skill` | 133 skill packs | Biopython, DeepChem, ESM, MedChem |
 
-### 2. Slash Translation
-`HermesBridge` translates the slash command into a detailed prompt with `:::block` format instructions (charts, diagrams, callouts, timelines).
+## Report Engine v4
 
-### 3. Conversation Context
-All prior messages are loaded from PostgreSQL and passed to Hermes via `run_conversation(conversation_history=...)`. The agent has full context across turns.
-
-### 4. Tool Chaining
-The agent autonomously picks tools:
-```
-pubmed_search("EGFR TKI resistance")     → real NCBI API
-opentargets_search("EGFR lung cancer")   → real OpenTargets GraphQL
-fetch_citation("EGFR NSCLC review")      → real CrossRef API
-compile_report(title, content, citations) → report engine v4
-```
-
-### 5. Report Engine v4
-The `compile_report` tool receives 2000+ words of markdown with special blocks:
-```
-:::chart {"type":"bar","title":"Mutation Freq","labels":["EGFR","BRAF"],"values":[15,8]} :::
-:::diagram graph TD A[Gene] --> B[Protein] --> C[Cancer] :::
-:::callout success  Key FDA approval finding here  :::
-:::timeline  - **2015**: Osimertinib approved  :::
-:::progress  - EGFR: 15% (NSCLC)  :::
-| Drug | Target | Phase |   ← markdown tables
-```
-
-The report engine parses these into:
-- **Plotly.js interactive charts** (hover, zoom, pan)
-- **Mermaid.js pathway diagrams** (flowcharts, sequence diagrams)
-- **Sortable tables** (click column headers)
-- **Callout boxes** (info/warning/success/danger with icons)
-- **Progress bars** (animated percentage comparisons)
-- **Timelines** (chronological event display)
-
-Output: standalone HTML with sidebar TOC, search bar, dark/light toggle, print button.
-
-### 6. Report Editing
-User: "add more citations" → Agent calls `get_last_report` (reads raw markdown from `cryo-data/sources/`) → modifies content → calls `compile_report` again → updated HTML.
-
-### 7. Data Persistence
-- **PostgreSQL**: users, conversations, messages (source of truth)
-- **cryo-data/**: generated reports + raw sources (per user/conversation, bind-mounted)
-- **Hermes SQLite**: not used — we pass history from PG directly
-
-## All 18 Tools (9 Toolsets)
-
-| Tool | Toolset | Source | What It Does |
-|------|---------|--------|-------------|
-| `pubmed_search` | cryo_literature | NCBI E-utilities | Search papers, returns titles/authors/abstracts/PMIDs |
-| `biorxiv_search` | cryo_literature | bioRxiv API | Search preprints |
-| `fetch_citation` | cryo_literature | CrossRef + PubMed | APA/MLA/Chicago citations with DOIs |
-| `uniprot_lookup` | cryo_protein | UniProt REST | Protein function, domains, GO terms, PDB IDs |
-| `pdb_search` | cryo_protein | RCSB PDB | 3D structures, resolution, method |
-| `chembl_search` | cryo_drug | ChEMBL REST | Drug properties, SMILES, approval status |
-| `opentargets_search` | cryo_drug | OpenTargets GraphQL | Disease-target associations |
-| `clinvar_lookup` | cryo_variant | ClinVar/NCBI | Variant pathogenicity, conditions |
-| `ensembl_vep` | cryo_variant | Ensembl REST | SIFT/PolyPhen scores, consequences |
-| `compile_report` | cryo_reports | Report Engine v4 | Markdown → interactive HTML with charts/diagrams |
-| `get_last_report` | cryo_reports | Disk (cryo-data/) | Retrieve raw markdown for report editing |
-| `generate_excel` | cryo_reports | openpyxl | Multi-sheet Excel spreadsheets |
-| `generate_chart` | cryo_reports | matplotlib | Standalone chart PNGs |
-| `verify_claim` | cryo_cosight | Multi-source | Cross-check claims (PubMed + OpenTargets + CrossRef) |
-| `analyze_image_vlm` | cryo_vlm | Gemini Vision | Analyze microscopy, gels, structures |
-| `deep_research` | cryo_deep_research | gpt-researcher | Autonomous multi-source research |
-| `multi_agent_research` | cryo_deep_research | open_deep_research | Supervisor-researcher pattern |
-| `scientific_skill` | cryo_scientific_skills | 133 skill packs | Biopython, DeepChem, ESM, MedChem, etc. |
-
-All biology tools hit free public APIs — no extra keys needed beyond `GEMINI_API_KEY`.
+Reports are interactive HTML pages with:
+- **Plotly.js charts** (bar, pie, line, scatter) — embedded via `:::chart` blocks
+- **Mermaid.js diagrams** (pathway flowcharts) — via `:::diagram` blocks
+- **Callout boxes** (info/warning/success/danger) — via `:::callout` blocks
+- **Progress bars** (mutation frequencies) — via `:::progress` blocks
+- **Timelines** (drug approval history) — via `:::timeline` blocks
+- **Sortable tables** — auto-parsed from markdown pipe tables
+- **Sidebar TOC** with scroll-spy
+- **Search bar** for in-report text search
+- **Dark/light mode** toggle
+- **Print button**
+- **Cover page** with CRYO branding
 
 ## Slash Commands
 
+Type `/` in any chat or workspace node:
+
 | Command | What It Does |
 |---------|-------------|
-| `/pubmed <query>` | Search PubMed literature |
-| `/protein <gene>` | Protein/gene deep lookup |
+| `/pubmed <query>` | Search PubMed |
+| `/protein <gene>` | Protein/gene lookup |
 | `/drug <name>` | Drug/compound info |
-| `/variant <rsid>` | Variant clinical significance |
-| `/vep <chr:pos:ref:alt>` | Variant effect prediction |
+| `/variant <rsid>` | Variant significance |
+| `/vep <pos>` | Variant effect prediction |
 | `/targets <disease>` | Disease-target associations |
-| `/structure <pdb_id>` | 3D protein structures |
-| `/biorxiv <query>` | Preprint search |
+| `/structure <id>` | 3D protein structures |
 | `/report <topic>` | Generate interactive HTML report |
 | `/chart <topic>` | Generate visualization |
-| `/export <topic>` | Export data to Excel |
-| `/repurpose <disease>` | Drug repurposing analysis |
-| `/pathway <name>` | Biological pathway exploration |
+| `/export <topic>` | Export to Excel |
+| `/repurpose <disease>` | Drug repurposing |
 | `/compare <A> <B>` | Compare genes/proteins/drugs |
 
-## Proven Report Pipeline
-
-Tested `/report CAR-T cell therapy` with `gemini-3-pro-preview`:
-
-```
-21:36:32  pubmed_search          → "CAR-T solid tumors 2025-2026"
-21:36:37  biorxiv_search         → "CAR-T solid tumor"
-21:36:59  fetch_citation         → 8 APA citations
-21:37:53  compile_report         → 18,070 chars, 8 sections, 8 citations
-21:37:53  Report Engine v4       → 44.5KB interactive HTML
-```
-
-Report features rendered: Mermaid diagrams, Plotly charts, callout boxes, timelines, progress bars, sortable tables, sidebar TOC, search, dark/light toggle.
-
-## Data Directory
+## Data
 
 ```
 cryo-data/                              ← bind-mounted from host
   └── users/{user_id}/
-      └── conversations/                ← max 50 per user, oldest auto-deleted
+      └── conversations/                ← max 50 per user
           └── {conversation_id}/
-              ├── reports/*.html        ← generated interactive reports
+              ├── reports/*.html
               └── sources/*.json        ← raw markdown for editing
-```
-
-## Project Structure
-
-```
-cryo/
-├── .env                                # All configuration
-├── SOUL.md                             # Agent persona + :::block examples
-├── docker-compose.yml                  # 3 services (db, api, frontend)
-├── test_queries.md                     # 30+ graded test queries
-│
-├── api/
-│   ├── main.py                         # FastAPI app + report file serving
-│   ├── requirements.txt                # Pinned Python deps
-│   ├── core/                           # Config, DB, auth, logging
-│   ├── models/                         # SQLAlchemy ORM
-│   ├── routers/                        # Auth + chat endpoints
-│   └── services/
-│       ├── hermes_bridge.py            # Slash translate + AIAgent wrapper
-│       └── report_engine.py            # v4: markdown → interactive HTML
-│
-├── frontend/src/
-│   ├── components/                     # ChatInput, SlashMenu, MessageBubble, Sidebar
-│   ├── pages/                          # AuthPage, ChatPage
-│   └── styles/globals.css              # CRYO dark theme
-│
-├── hermes-agent/tools/                 # 11 CRYO tool files (auto-discovered)
-│   ├── cryo_literature.py              # pubmed, biorxiv, citations
-│   ├── cryo_protein.py                 # uniprot, pdb
-│   ├── cryo_drug.py                    # chembl, opentargets
-│   ├── cryo_variant.py                 # clinvar, ensembl vep
-│   ├── cryo_reports.py                 # compile_report, get_last_report, excel, chart
-│   ├── cryo_cosight.py                 # verify_claim
-│   ├── cryo_vlm.py                     # analyze_image_vlm
-│   ├── cryo_citation.py                # fetch_citation
-│   ├── cryo_deep_research.py           # deep_research
-│   ├── cryo_open_deep_research.py      # multi_agent_research
-│   └── cryo_scientific_skills.py       # scientific_skill
-│
-├── cryo-data/                          # Persistent data (bind-mounted)
-├── db/schema.sql                       # PostgreSQL schema (20+ tables)
-├── docker/                             # Dockerfiles (api + frontend)
-└── integrations/                       # gpt-researcher, Co-Sight, open_deep_research, scientific-agent-skills
 ```
 
 ## Environment Variables
@@ -268,66 +185,51 @@ cryo/
 |----------|-------------|---------|
 | `GEMINI_API_KEY` | Google AI Studio API key | **required** |
 | `HERMES_MODEL` | LLM model | `gemini-3-pro-preview` |
-| `HERMES_PROVIDER` | LLM provider | `gemini` |
-| `HERMES_MAX_ITERATIONS` | Max tool loops per turn | `15` |
-| `CRYO_DATA_DIR` | Persistent data directory | `/cryo-data` |
-| `CRYO_MAX_CONVERSATIONS_PER_USER` | Max conversation dirs per user | `50` |
+| `HERMES_MAX_ITERATIONS` | Max tool loops | `15` |
+| `CRYO_DATA_DIR` | Persistent data dir | `/cryo-data` |
+| `CRYO_MAX_WORKSPACES_PER_USER` | Max workspaces | `10` |
+| `CRYO_MAX_NODES_PER_WORKSPACE` | Max nodes | `50` |
+| `CRYO_MAX_CONVERSATIONS_PER_USER` | Max conversation dirs | `50` |
 | `POSTGRES_*` | Database config | `cryo:5432/cryo` |
-| `JWT_SECRET` | JWT signing secret (32+ bytes for prod) | **required** |
-| `LOG_LEVEL` | Logging level | `INFO` |
+| `JWT_SECRET` | JWT signing secret | **required** |
 
 ## Docker
 
-```yaml
-db:        postgres:17.5-alpine3.22     :5432
-api:       python:3.12.13-slim          :8000   (hot-reload, structured logging)
-frontend:  node:22.15.0-alpine3.21      :3000   (Vite dev server)
-```
-
 ```bash
-docker compose up -d              # Start all
+docker compose up -d              # Start all (db, api, frontend)
 docker compose logs api -f        # Watch tool calls
 docker compose restart api        # Reload after .env changes
+bash cryo.sh                      # Shortcut: down + up + logs
 ```
 
-## TODO
+## Project Structure
 
-### High Priority
-- [ ] Add retry with exponential backoff on all external API calls
-- [ ] Wire tool_executions table — log every tool call to PostgreSQL
-- [ ] Production JWT secret, rate limiting
-- [ ] Improve agent's use of :::chart blocks (more numeric data extraction)
-
-### Medium Priority
-- [ ] VCF file upload + variant analysis pipeline
-- [ ] Knowledge graph auto-population from tool results
-- [ ] Paper bookmarking to user_papers table
-- [ ] Drug repurposing scoring engine
-- [ ] User settings page (model selection, citation style)
-- [ ] Better chat UI status messages during tool execution
-
-### Integrations
-- [ ] Wire gpt-researcher (needs TAVILY_API_KEY)
-- [ ] Wire Co-Sight native module
-- [ ] Wire open_deep_research LangGraph pipeline
-- [ ] Port scientific-agent-skills as native tools
-- [ ] Mol*/py3Dmol for protein 3D visualization
-- [ ] Plotly/Dash for interactive dashboards
-
-### Production
-- [ ] Multi-stage Dockerfiles
-- [ ] Nginx + production Vite build
-- [ ] Alembic database migrations
-- [ ] CI/CD pipeline
-- [ ] Monitoring (Prometheus/Grafana)
-- [ ] HTTPS
-
-### Research Ideas
-- [ ] Autonomous hypothesis generation
-- [ ] Batch variant analysis (1000+ VCF)
-- [ ] Literature contradiction detector
-- [ ] Clinical trial matcher (ClinicalTrials.gov API)
-- [ ] Protein interaction network visualization
+```
+cryo/
+├── api/                             # FastAPI backend
+│   ├── routers/auth.py              # JWT auth
+│   ├── routers/chat.py              # SSE chat + conversations
+│   ├── routers/workspace.py         # Workspace CRUD + save
+│   └── services/
+│       ├── hermes_bridge.py         # Agent wrapper
+│       └── report_engine.py         # v4 HTML report engine
+├── frontend/src/
+│   ├── components/
+│   │   ├── ChatInput.tsx            # Slash command input
+│   │   ├── ChatNode.tsx             # Workspace node (mini chat)
+│   │   ├── MessageBubble.tsx        # Markdown + bionic reading
+│   │   ├── SlashMenu.tsx            # Command dropdown
+│   │   └── Sidebar.tsx              # Chat view sidebar
+│   └── pages/
+│       ├── ChatPage.tsx             # Traditional chat
+│       └── WorkspacePage.tsx        # Multi-canvas workspace
+├── hermes-agent/tools/              # 11 CRYO tool files
+├── cryo-data/                       # Persistent reports (bind-mounted)
+├── db/schema.sql                    # PostgreSQL schema (20+ tables)
+├── integrations/                    # gpt-researcher, Co-Sight, etc.
+├── SOUL.md                          # Agent persona + :::block examples
+└── docker-compose.yml               # 3 services
+```
 
 ## License
 

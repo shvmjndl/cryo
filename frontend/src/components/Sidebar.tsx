@@ -1,4 +1,5 @@
-import { Dna, Plus, MessageSquare, LogOut, Settings } from 'lucide-react'
+import { Dna, Plus, MessageSquare, LogOut, GitBranch } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 interface Conversation {
   id: string
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export default function Sidebar({ conversations, activeId, onSelect, onNew, onLogout, username }: Props) {
+  const navigate = useNavigate()
+
   return (
     <div className="w-72 h-screen flex flex-col bg-[var(--color-cryo-surface)] border-r border-[var(--color-cryo-border)]">
       {/* Header */}
@@ -27,9 +30,25 @@ export default function Sidebar({ conversations, activeId, onSelect, onNew, onLo
             CRYO
           </span>
         </div>
+        <div className="flex gap-2 mb-2">
+          <button
+            onClick={onNew}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[var(--color-cryo-border)] hover:border-[var(--color-cryo-accent)] hover:bg-[var(--color-cryo-surface-2)] transition-all text-xs text-[var(--color-cryo-text-dim)] hover:text-[var(--color-cryo-accent)]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Chat
+          </button>
+          <button
+            onClick={() => navigate('/workspace')}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[var(--color-cryo-border)] hover:border-[var(--color-cryo-purple)] hover:bg-[var(--color-cryo-surface-2)] transition-all text-xs text-[var(--color-cryo-text-dim)] hover:text-[var(--color-cryo-purple)]"
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+            Workspace
+          </button>
+        </div>
         <button
           onClick={onNew}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-[var(--color-cryo-border)] hover:border-[var(--color-cryo-accent)] hover:bg-[var(--color-cryo-surface-2)] transition-all text-sm text-[var(--color-cryo-text-dim)] hover:text-[var(--color-cryo-accent)]"
+          className="hidden w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-[var(--color-cryo-border)] hover:border-[var(--color-cryo-accent)] hover:bg-[var(--color-cryo-surface-2)] transition-all text-sm text-[var(--color-cryo-text-dim)] hover:text-[var(--color-cryo-accent)]"
         >
           <Plus className="w-4 h-4" />
           New Research Chat

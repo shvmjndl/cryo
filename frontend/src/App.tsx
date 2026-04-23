@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import AuthPage from './pages/AuthPage'
 import ChatPage from './pages/ChatPage'
+import WorkspacePage from './pages/WorkspacePage'
 
 export default function App() {
   const { user, loading, login, signup, logout } = useAuth()
@@ -32,6 +33,10 @@ export default function App() {
       <Route
         path="/auth"
         element={user ? <Navigate to="/" /> : <AuthPage onLogin={login} onSignup={signup} />}
+      />
+      <Route
+        path="/workspace"
+        element={user ? <WorkspacePage user={user} onLogout={logout} /> : <Navigate to="/auth" />}
       />
       <Route
         path="/*"

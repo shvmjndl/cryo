@@ -97,32 +97,25 @@ def translate_slash_command(message: str) -> str:
 class HermesBridge:
 
     def __init__(self):
-        self._agent = None
         logger.info("HermesBridge initialized")
 
-    def _get_agent(self):
-        if self._agent is None:
-            logger.info("Initializing AIAgent: model=%s", settings.HERMES_MODEL)
-            try:
-                from run_agent import AIAgent
-                self._agent = AIAgent(
-                    model=settings.HERMES_MODEL,
-                    max_iterations=settings.HERMES_MAX_ITERATIONS,
-                    quiet_mode=True,
-                    skip_context_files=True,
-                    max_tokens=32768,
-                    enabled_toolsets=[
-                        "cryo_literature", "cryo_protein", "cryo_drug",
-                        "cryo_variant", "cryo_reports", "cryo_vlm",
-                        "cryo_deep_research", "cryo_cosight",
-                        "cryo_scientific_skills",
-                    ],
-                )
-                logger.info("AIAgent initialized successfully")
-            except Exception as e:
-                logger.error("Failed to init AIAgent: %s", e, exc_info=True)
-                raise
-        return self._agent
+    def _create_agent(self):
+        """Create a fresh agent per request — prevents cross-talk between concurrent workspace nodes."""
+        from run_agent import AIAgent
+        logger.info("Creating AIAgent: model=%s", settings.HERMES_MODEL)
+        return AIAgent(
+            model=settings.HERMES_MODEL,
+            max_iterations=settings.HERMES_MAX_ITERATIONS,
+            quiet_mode=True,
+            skip_context_files=True,
+            max_tokens=32768,
+            enabled_toolsets=[
+                "cryo_literature", "cryo_protein", "cryo_drug",
+                "cryo_variant", "cryo_reports", "cryo_vlm",
+                "cryo_deep_research", "cryo_cosight",
+                "cryo_scientific_skills",
+            ],
+        )
 
     async def chat_stream(
         self, message: str, history: list[dict[str, str]] | None = None,
@@ -150,7 +143,7 @@ class HermesBridge:
         loop = asyncio.get_event_loop()
 
         def _run():
-            agent = self._get_agent()
+            agent = self._create_agent()
 
             # Set per-request data path so tools write to user/conversation dirs
             if user_id and conversation_id:
@@ -166,17 +159,23 @@ class HermesBridge:
                     if role in ("user", "assistant") and content:
                         conversation_history.append({"role": role, "content": content})
 
-            # Add report format instructions for report queries
-            prefix = ""
-            if any(kw in translated.lower() for kw in ["report about", "research report", "compile_report"]):
-                prefix = REPORT_FORMAT_PROMPT
-
-            full_message = (
-                f"{prefix}"
-                "Use max 5 tool calls. After tools return, write your full response immediately. "
-                "Don't repeat the same tool call.\n\n"
-                f"{translated}"
+            # System context — always injected so agent knows its identity
+            system_ctx = (
+                "You are CRYO, a biology research AI. Your slash commands: "
+                "/pubmed, /protein, /drug, /variant, /vep, /targets, /structure, /biorxiv, "
+                "/report, /chart, /export, /repurpose, /pathway, /compare. "
+                "Your tools: pubmed_search, uniprot_lookup, pdb_search, chembl_search, "
+                "opentargets_search, clinvar_lookup, ensembl_vep, fetch_citation, "
+                "compile_report, generate_excel, generate_chart, verify_claim, analyze_image_vlm. "
+                "Use max 5 tool calls. After tools return, respond immediately.\n\n"
             )
+
+            # Add report format instructions for report queries
+            report_ctx = ""
+            if any(kw in translated.lower() for kw in ["report about", "research report", "compile_report"]):
+                report_ctx = REPORT_FORMAT_PROMPT
+
+            full_message = f"{system_ctx}{report_ctx}{translated}"
 
             # Use run_conversation with history so agent has context from prior messages
             result = agent.run_conversation(
