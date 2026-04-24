@@ -12,3 +12,8 @@ httpx==0.28.1
 # Report generation (HTML-based, no PDF libs needed)
 openpyxl==3.1.5
 matplotlib==3.10.3
+pandas==2.2.2
+cobra==0.28.0
+pytest==8.2.2
+anyio==4.12.1
+pytest-asyncio==0.23.6

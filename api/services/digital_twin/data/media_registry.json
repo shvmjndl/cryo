@@ -1,0 +1,27 @@
+{
+  "presets": {
+    "human1_minimal": {
+      "description": "Derive a feasible import set from Human1 using COBRApy minimal_medium at 50% of baseline objective.",
+      "selector": {
+        "biomass_reaction_id": "MAR13082"
+      },
+      "strategy": "minimal_medium",
+      "objective_fraction": 0.5
+    },
+    "human1_glucose_challenge": {
+      "description": "Start from a feasible Human1 minimal medium, then explicitly allow glucose uptake for glucose-targeted perturbation tests.",
+      "selector": {
+        "biomass_reaction_id": "MAR13082"
+      },
+      "strategy": "minimal_medium_with_overrides",
+      "objective_fraction": 0.5,
+      "imports": [
+        {
+          "reaction_id": "MAR09034",
+          "label": "glucose",
+          "lower_bound": -10.0
+        }
+      ]
+    }
+  }
+}

@@ -6,6 +6,7 @@
 import { Dna, User, GitBranch, FileText, ExternalLink } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
+import { StructureViewer } from './StructureViewer'
 
 export interface ChatMsg {
   id: string
@@ -19,27 +20,49 @@ interface Props {
   onBranch?: (content: string) => void  // if provided, shows branch button
 }
 
+// ─── 3D structure tag extraction ───
+
+function extractStructures(content: string): { pdbId: string; title?: string }[] {
+  const pattern = /\[3D:([A-Z0-9]{4})(?:\|([^\]]+))?\]/gi
+  const seen = new Set<string>()
+  const results: { pdbId: string; title?: string }[] = []
+  let m
+  while ((m = pattern.exec(content)) !== null) {
+    const id = m[1].toUpperCase()
+    if (seen.has(id)) continue
+    seen.add(id)
+    results.push({ pdbId: id, title: m[2]?.trim() })
+  }
+  return results
+}
+
+function stripStructureTags(content: string): string {
+  return content.replace(/\[3D:[A-Z0-9]{4}(?:\|[^\]]+)?\]/gi, '').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 // ─── File link detection ───
 
 function extractFileLinks(content: string) {
   const links: { url: string; filename: string; type: string }[] = []
   const seen = new Set<string>()
 
-  // Match both /api/reports/filename and bare report_*.ext filenames
+  // Match both nested /api/reports/.../filename and bare report_*.ext filenames.
   const patterns = [
-    /\/api\/reports\/(report_[a-zA-Z0-9_\-]+\.(html|pdf|xlsx|png|csv))/g,
-    /(?:^|\s|\()(report_[a-zA-Z0-9_\-]+\.(html|pdf|xlsx|png|csv))/gm,
+    /\/api\/reports\/((?:[a-zA-Z0-9_\-]+\/)*([a-zA-Z0-9_\-]+\.(html|pdf|xlsx|png|csv|md)))/g,
+    /(?:^|\s|\()(report_[a-zA-Z0-9_\-]+\.(html|pdf|xlsx|png|csv|md))/gm,
   ]
 
   for (const pattern of patterns) {
     let m
     while ((m = pattern.exec(content)) !== null) {
-      const filename = m[1]
-      if (seen.has(filename)) continue
-      seen.add(filename)
-      const ext = m[2]
-      const type = ext === 'html' ? 'Interactive Report' : ext === 'pdf' ? 'PDF Report' : ext === 'xlsx' ? 'Excel' : ext === 'png' ? 'Chart' : 'File'
-      links.push({ url: `/api/reports/${filename}`, filename, type })
+      const path = m[1]
+      const filename = m[2] || m[1]
+      if (seen.has(path)) continue
+      seen.add(path)
+      const ext = filename.split('.').pop() || ''
+      const type = ext === 'html' ? 'Interactive Report' : ext === 'pdf' ? 'PDF Report' : ext === 'xlsx' ? 'Excel' : ext === 'png' ? 'Chart' : ext === 'md' ? 'Markdown Report' : 'File'
+      const url = path.includes('/') ? `/api/reports/${path}` : `/api/reports/${filename}`
+      links.push({ url, filename, type })
     }
   }
   return links
@@ -120,7 +143,9 @@ function FileCard({ url, filename, type }: { url: string; filename: string; type
 export default function ChatMessage({ message, compact = false, onBranch }: Props) {
   const isUser = message.role === 'user'
   const content = message.content || ''
-  const fileLinks = extractFileLinks(content)
+  const structures = isUser ? [] : extractStructures(content)
+  const displayContent = structures.length > 0 ? stripStructureTags(content) : content
+  const fileLinks = extractFileLinks(displayContent)
   const components = getMarkdownComponents(compact)
 
   return (
@@ -138,7 +163,12 @@ export default function ChatMessage({ message, compact = false, onBranch }: Prop
 
         {/* Content */}
         <div className="flex-1 min-w-0" style={{ userSelect: 'text' }}>
-          <ReactMarkdown components={components}>{content}</ReactMarkdown>
+          <ReactMarkdown components={components}>{displayContent}</ReactMarkdown>
+
+          {/* 3D structure viewers — compact prop shrinks canvas in workspace nodes */}
+          {structures.map(s => (
+            <StructureViewer key={s.pdbId} pdbId={s.pdbId} title={s.title} compact={compact} />
+          ))}
 
           {/* File download cards */}
           {fileLinks.length > 0 && (

@@ -22,6 +22,7 @@ const SLASH_COMMANDS = [
   { command: '/vep', description: 'Variant effect prediction' },
   { command: '/targets', description: 'Disease-target associations' },
   { command: '/structure', description: 'Protein 3D structures' },
+  { command: '/digital_twin', description: 'Simulate metabolic drug response' },
   { command: '/report', description: 'Generate research report' },
   { command: '/chart', description: 'Generate visualization' },
   { command: '/export', description: 'Export to Excel' },

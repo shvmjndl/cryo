@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, AsyncGenerator
 
 from api.core.config import settings
+from api.services.digital_twin_service import digital_twin_service
 
 logger = logging.getLogger("cryo.bridge")
 
@@ -23,11 +24,20 @@ SLASH_TRANSLATORS = {
     "/pubmed": "Search PubMed for scientific papers about: {query}. Use the pubmed_search tool.",
     "/biorxiv": "Search bioRxiv preprints about: {query}. Use the biorxiv_search tool.",
     "/protein": "Look up detailed protein/gene information for: {query}. Use the uniprot_lookup tool.",
-    "/structure": "Search for 3D protein structures of: {query}. Use the pdb_search tool.",
+    "/structure": (
+        "Search for 3D protein structures of: {query}. Use the pdb_search tool. "
+        "For each structure found, include a viewer tag in the format [3D:PDBID|Structure Title] "
+        "(e.g., [3D:1TUP|Tumor Suppressor p53]) so CRYO can render it in the inline 3D viewer. "
+        "Place the tag immediately after describing each structure."
+    ),
     "/drug": "Search for drug/compound information about: {query}. Use the chembl_search tool.",
     "/targets": "Find disease-target associations for: {query}. Use the opentargets_search tool.",
     "/variant": "Look up clinical significance of variant: {query}. Use the clinvar_lookup tool.",
     "/vep": "Predict functional effects of variant: {query}. Use the ensembl_vep tool.",
+    "/digital_twin": (
+        "Run a digital twin metabolic simulation for drug response using drug id: {query}. "
+        "Use the digital_twin tool with action='simulate_drug_response'."
+    ),
     "/repurpose": "Analyze drug repurposing opportunities for: {query}. Use chembl_search and opentargets_search tools.",
     "/pathway": "Explain the biological pathway: {query}. Include key genes/proteins, signaling cascade, disease relevance.",
     "/compare": "Compare and contrast: {query}. Use relevant tools to gather data, then provide a detailed comparison.",
@@ -51,6 +61,7 @@ SLASH_COMMANDS = [
     {"command": "/targets", "description": "Disease-target associations", "example": "/targets glioblastoma"},
     {"command": "/variant", "description": "Variant clinical significance", "example": "/variant rs28934578"},
     {"command": "/vep", "description": "Variant effect prediction", "example": "/vep 17:7675088:C:T"},
+    {"command": "/digital_twin", "description": "Simulate metabolic drug response", "example": "/digital_twin glucose_inhibitor"},
     {"command": "/repurpose", "description": "Drug repurposing candidates", "example": "/repurpose Huntington disease"},
     {"command": "/pathway", "description": "Explore biological pathways", "example": "/pathway p53 signaling"},
     {"command": "/compare", "description": "Compare genes/proteins/drugs", "example": "/compare BRCA1 BRCA2"},
@@ -94,6 +105,108 @@ def translate_slash_command(message: str) -> str:
     return message
 
 
+def _extract_digital_twin_query(message: str) -> str | None:
+    match = re.match(r"^/digital_twin\s+(.+)$", message.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    return match.group(1).strip() or None
+
+
+def _format_digital_twin_response(drug_id: str, result: dict[str, Any]) -> str:
+    initial_flux = float(result.get("initial_biomass_flux", 0.0))
+    drug_flux = float(result.get("drug_biomass_flux", 0.0))
+    delta = drug_flux - initial_flux
+    percent_change = 0.0 if initial_flux == 0 else (delta / initial_flux) * 100
+
+    if percent_change <= -1:
+        outcome = "Predicted growth suppression"
+    elif percent_change >= 1:
+        outcome = "Predicted growth enhancement"
+    else:
+        outcome = "No material growth change"
+
+    effects = result.get("drug_effects_applied", {}) or {}
+    changed_fluxes = result.get("changed_fluxes", {}) or {}
+    report_path = result.get("report_path", "")
+    plot_path = result.get("plot_path", "")
+
+    lines = [
+        f"## Digital Twin Result: `{drug_id}`",
+        "",
+        f"**Outcome:** {outcome}",
+        "",
+        "### Key Metrics",
+        "| Metric | Value |",
+        "| --- | --- |",
+        f"| Initial Biomass Flux | {initial_flux:.4f} |",
+        f"| Biomass Flux With Drug | {drug_flux:.4f} |",
+        f"| Absolute Change | {delta:.4f} |",
+        f"| Percent Change | {percent_change:.2f}% |",
+        "",
+        "### Applied Effects",
+    ]
+
+    if effects:
+        for reaction_id, effect in effects.items():
+            lines.append(f"- **{reaction_id}**: {effect}")
+    else:
+        lines.append("- No explicit reaction-level inhibition was applied.")
+
+    lines.extend([
+        "",
+        "### Flux Shifts",
+        "| Reaction | Flux Change |",
+        "| --- | --- |",
+    ])
+
+    if changed_fluxes:
+        for reaction_id, flux_change in sorted(
+            changed_fluxes.items(), key=lambda item: abs(item[1]), reverse=True
+        ):
+            lines.append(f"| {reaction_id} | {flux_change:.4f} |")
+    else:
+        lines.append("| No significant change detected | 0.0000 |")
+
+    lines.extend([
+        "",
+        "### Interpretation",
+        "This is a deterministic result from CRYO's current demo metabolic model. It is useful for product testing and directional tool validation, but it is not a patient-specific clinical prediction.",
+        "",
+        "### Files",
+    ])
+
+    if report_path:
+        lines.append(f"- [Digital Twin Report]({report_path})")
+    if plot_path:
+        lines.append(f"- [Biomass Plot]({plot_path})")
+    if not report_path and not plot_path:
+        lines.append("- No report artifact was generated.")
+
+    return "\n".join(lines)
+
+
+def _has_references_or_citations(text: str) -> bool:
+    patterns = [
+        r"\[[^\]]+\]\([^)]+\)",         # markdown links
+        r"\[(?:\d+|[A-Za-z0-9_,\-\s]+)\]",  # bracket citations / refs
+        r"\bdoi:\s*\S+",
+        r"/api/reports/",
+        r"https?://",
+        r"\bReferences\b",
+        r"\bSources\b",
+        r"\bCitations\b",
+    ]
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def _fallback_references_footer() -> str:
+    return (
+        "\n\n### References\n"
+        "- No source-backed references or citations were included in this answer.\n"
+        "- Please cross-verify it before relying on it."
+    )
+
+
 class HermesBridge:
 
     def __init__(self):
@@ -112,6 +225,7 @@ class HermesBridge:
             enabled_toolsets=[
                 "cryo_literature", "cryo_protein", "cryo_drug",
                 "cryo_variant", "cryo_reports", "cryo_vlm",
+                "cryo_digital_twin",
                 "cryo_deep_research", "cryo_cosight",
                 "cryo_scientific_skills",
             ],
@@ -121,15 +235,67 @@ class HermesBridge:
         self, message: str, history: list[dict[str, str]] | None = None,
         user_id: str = "", conversation_id: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
+        digital_twin_query = _extract_digital_twin_query(message)
+        if digital_twin_query:
+            logger.info("Direct digital twin path: user=%s convo=%s drug_id=%r",
+                        user_id[:8], conversation_id[:8], digital_twin_query)
+            if user_id and conversation_id:
+                os.environ["CRYO_USER_ID"] = user_id
+                os.environ["CRYO_CONVERSATION_ID"] = conversation_id
+            # Only reload if the query implies a different backbone than the loaded one
+            inferred = digital_twin_service.model_metadata.get("configured_backbone", "")
+            from api.services.digital_twin.model_registry import infer_backbone_from_query
+            query_backbone = infer_backbone_from_query(digital_twin_query)
+            if query_backbone and query_backbone != inferred:
+                digital_twin_service.reload_model_for_query(digital_twin_query)
+            yield {"type": "tool_start", "name": "digital_twin", "args": {
+                "action": "simulate_drug_response",
+                "drug_id": digital_twin_query,
+            }}
+
+            personalized_model, personalization_notes = digital_twin_service.personalize_model(
+                digital_twin_service.model.copy(),
+                {},
+                {
+                    "drug_id": digital_twin_query,
+                    "configured_backbone": digital_twin_service.model_metadata.get("configured_backbone", ""),
+                },
+            )
+            simulation_results = digital_twin_service.simulate_drug_effect(
+                personalized_model,
+                digital_twin_query,
+            )
+            if "error" in simulation_results:
+                yield {"type": "tool_result", "name": "digital_twin", "result": json.dumps(simulation_results)}
+                yield {"type": "delta", "text": f"Digital twin simulation failed: {simulation_results['error']}"}
+                return
+
+            report_output = digital_twin_service.generate_report(
+                simulation_results,
+                user_id or "default_user",
+                conversation_id or "default_conversation",
+                personalization_notes=personalization_notes,
+            )
+            combined = {
+                **simulation_results,
+                "report_path": report_output.get("report_path", ""),
+                "plot_path": report_output.get("plot_path", ""),
+            }
+            yield {"type": "tool_result", "name": "digital_twin", "result": json.dumps(combined)}
+            yield {"type": "delta", "text": _format_digital_twin_response(digital_twin_query, combined)}
+            return
+
         translated = translate_slash_command(message)
         logger.info("Chat: user=%s convo=%s history=%d translated=%r",
                     user_id[:8], conversation_id[:8], len(history or []), translated[:60])
 
         chunks: list[str] = []
+        transcript: list[str] = []
         tool_events: list[dict] = []
 
         def on_delta(text: str):
             chunks.append(text)
+            transcript.append(text)
 
         def on_tool_start(tool_id: str, name: str, args: dict):
             logger.info("Tool start: %s args=%s", name, json.dumps(args, default=str)[:200])
@@ -163,10 +329,11 @@ class HermesBridge:
             system_ctx = (
                 "You are CRYO, a biology research AI. Your slash commands: "
                 "/pubmed, /protein, /drug, /variant, /vep, /targets, /structure, /biorxiv, "
-                "/report, /chart, /export, /repurpose, /pathway, /compare. "
+                "/report, /chart, /export, /repurpose, /pathway, /compare, /digital_twin. "
                 "Your tools: pubmed_search, uniprot_lookup, pdb_search, chembl_search, "
                 "opentargets_search, clinvar_lookup, ensembl_vep, fetch_citation, "
-                "compile_report, generate_excel, generate_chart, verify_claim, analyze_image_vlm. "
+                "compile_report, generate_excel, generate_chart, verify_claim, analyze_image_vlm, digital_twin. "
+                "For every non-digital-twin answer, you must call fetch_citation before the final response and include citations and/or a References section. "
                 "Use max 5 tool calls. After tools return, respond immediately.\n\n"
             )
 
@@ -201,6 +368,9 @@ class HermesBridge:
 
         try:
             future.result()
+            final_text = "".join(transcript)
+            if final_text and not _has_references_or_citations(final_text):
+                yield {"type": "delta", "text": _fallback_references_footer()}
             logger.info("Chat completed")
         except Exception as e:
             logger.error("Chat failed: %s", e, exc_info=True)

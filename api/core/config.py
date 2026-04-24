@@ -33,6 +33,16 @@ class Settings:
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
+    # Bootstrap user
+    DEFAULT_SUPERUSER_EMAIL: str = os.getenv("DEFAULT_SUPERUSER_EMAIL", "creator@cryo.in")
+    DEFAULT_SUPERUSER_USERNAME: str = os.getenv("DEFAULT_SUPERUSER_USERNAME", "creator")
+    DEFAULT_SUPERUSER_PASSWORD: str = os.getenv(
+        "DEFAULT_SUPERUSER_PASSWORD", "creator@shivam0705"
+    )
+    DEFAULT_SUPERUSER_FULL_NAME: str = os.getenv(
+        "DEFAULT_SUPERUSER_FULL_NAME", "CRYO Creator"
+    )
+
     # Hermes
     HERMES_MODEL: str = os.getenv("HERMES_MODEL", "gemini-2.5-flash")
     HERMES_PROVIDER: str = os.getenv("HERMES_PROVIDER", "gemini")

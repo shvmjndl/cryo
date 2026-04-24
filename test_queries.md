@@ -15,6 +15,10 @@ Difficulty-graded test queries. Run each and check: tool chain, content quality,
 - [ ] `/targets Alzheimer's disease`
 - [ ] `/structure 1TUP`
 - [ ] `/pubmed CRISPR base editing 2025`
+- [ ] `/digital_twin glucose_inhibitor`
+- [ ] `/digital_twin atp_synthase_inhibitor`
+- [ ] `/digital_twin glucose_inhibitor_atp_synthase_inhibitor`
+- [ ] `/digital_twin placebo`
 
 ## Tier 2: Multi-Tool Chain
 
@@ -52,6 +56,22 @@ Difficulty-graded test queries. Run each and check: tool chain, content quality,
 - [ ] `/protein NOTAREALGENE` (graceful error)
 - [ ] `What is quantum computing?` (off-topic — should answer without bio tools)
 - [ ] `/variant rs9999999999999` (non-existent — should report no data)
+- [ ] `/digital_twin` (empty — should ask for or fail clearly on missing drug input)
+- [ ] `/digital_twin unknown_compound_xyz` (should run and report no meaningful effect rather than crash)
+
+## Digital Twin Checks
+
+- [ ] Slash menu shows `/digital_twin`
+- [ ] `/digital_twin glucose_inhibitor` completes without backend error
+- [ ] `/digital_twin atp_synthase_inhibitor` completes without backend error
+- [ ] Combined inhibitor query returns a report and plot link
+- [ ] Report link opens successfully
+- [ ] Plot PNG link opens successfully
+- [ ] Response includes initial biomass flux
+- [ ] Response includes drug biomass flux
+- [ ] Response lists applied reaction-level drug effects
+- [ ] Response handles no-effect inputs like `placebo` cleanly
+- [ ] No auth error or missing-tool error appears in the chat response
 
 ## What to Check in Each Report
 

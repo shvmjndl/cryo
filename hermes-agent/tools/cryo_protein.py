@@ -185,8 +185,8 @@ def _pdb_search(args: dict, **kw) -> str:
 
     logger.info("PDB search: query=%r", query)
 
-    # Check if it's a direct PDB ID (4 chars)
-    if len(query) == 4 and query.isalnum():
+    # PDB IDs: exactly 4 chars, first char is a digit (e.g. 1TUP, 6LU7)
+    if len(query) == 4 and query[0].isdigit() and query.isalnum():
         data = _safe_get(f"{PDB_BASE}/core/entry/{query.upper()}")
         if data and "error" not in (data if isinstance(data, dict) else {}):
             return _format_pdb_entry(data, query.upper())

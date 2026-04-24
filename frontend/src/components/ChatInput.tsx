@@ -12,6 +12,7 @@ const DEFAULT_COMMANDS: SlashCommand[] = [
   { command: '/variant', description: 'Variant clinical significance', example: '/variant rs28934578' },
   { command: '/vep', description: 'Variant effect prediction', example: '/vep 17:7675088:C:T' },
   { command: '/repurpose', description: 'Drug repurposing candidates', example: '/repurpose Huntington disease' },
+  { command: '/digital_twin', description: 'Simulate metabolic drug response', example: '/digital_twin glucose_inhibitor' },
   { command: '/pathway', description: 'Explore biological pathways', example: '/pathway p53 signaling' },
   { command: '/compare', description: 'Compare genes/proteins/drugs', example: '/compare BRCA1 BRCA2' },
   { command: '/export', description: 'Export data to Excel', example: '/export TP53 variants' },

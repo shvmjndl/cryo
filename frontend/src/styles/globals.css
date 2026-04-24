@@ -215,7 +215,7 @@ body {
 .chat-node-messages {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip; /* clip (not hidden) so structure viewer canvas isn't cut off */
   padding: 8px;
   min-height: 60px;
   max-height: calc(100% - 90px); /* header + input + footer */
@@ -329,6 +329,110 @@ body {
   border-top: 1px solid var(--color-cryo-border);
   display: flex;
   gap: 6px;
+}
+
+/* ─── 3D Structure Viewer ─── */
+.structure-viewer {
+  border: 1px solid var(--color-cryo-border-bright);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 10px 0;
+  background: var(--color-cryo-bg);
+}
+
+.structure-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-cryo-surface-2);
+  border-bottom: 1px solid var(--color-cryo-border);
+}
+
+.structure-viewer-pdb {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-cryo-accent);
+  letter-spacing: 0.06em;
+}
+
+.structure-viewer-name {
+  font-size: 11px;
+  color: var(--color-cryo-text-dim);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structure-viewer-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.structure-viewer-actions a,
+.structure-viewer-actions button {
+  color: var(--color-cryo-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background-color 0.15s;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.structure-viewer-actions a:hover,
+.structure-viewer-actions button:hover {
+  color: var(--color-cryo-accent);
+  background-color: rgba(0, 229, 199, 0.08);
+}
+
+.structure-viewer-canvas {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  background: var(--color-cryo-bg);
+}
+
+/* Compact mode for workspace nodes */
+.structure-viewer-canvas-compact {
+  height: 220px;
+}
+
+.structure-viewer-expanded .structure-viewer-canvas,
+.structure-viewer-expanded .structure-viewer-canvas-compact {
+  height: 440px;
+}
+
+.structure-viewer-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.structure-viewer-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-cryo-bg);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.structure-viewer-footer {
+  padding: 4px 10px;
+  font-size: 9px;
+  color: var(--color-cryo-text-muted);
+  background: var(--color-cryo-surface-2);
+  border-top: 1px solid var(--color-cryo-border);
+  letter-spacing: 0.03em;
 }
 
 /* React Flow overrides */
