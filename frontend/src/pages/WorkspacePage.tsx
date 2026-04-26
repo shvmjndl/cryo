@@ -8,6 +8,7 @@ import '@xyflow/react/dist/style.css'
 import { Plus, Dna, LogOut, MessageSquare, MoreVertical, Trash2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, GitBranch as BranchIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import ChatNode, { type ChatNodeData } from '../components/ChatNode'
+import ReportPanel from '../components/ReportPanel'
 import { workspace as wsApi } from '../lib/api'
 
 interface Props {
@@ -25,6 +26,17 @@ export default function WorkspacePage({ user, onLogout }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [loaded, setLoaded] = useState(false)
+  const [reportPanel, setReportPanel] = useState<{ url: string; filename: string } | null>(null)
+
+  // Listen for report open events fired by FileCard inside ChatNode messages
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { url, filename } = (e as CustomEvent).detail
+      setReportPanel({ url, filename })
+    }
+    window.addEventListener('cryo:open-report', handler)
+    return () => window.removeEventListener('cryo:open-report', handler)
+  }, [])
 
   // Workspace state
   const [workspaces, setWorkspaces] = useState<{id: string; name: string}[]>([])
@@ -181,6 +193,7 @@ export default function WorkspacePage({ user, onLogout }: Props) {
   }
 
   return (
+    <>
     <div className="h-screen flex flex-col bg-[var(--color-cryo-bg)]">
       {/* Top Bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-cryo-border)] bg-[var(--color-cryo-surface)]">
@@ -364,5 +377,14 @@ export default function WorkspacePage({ user, onLogout }: Props) {
 
       </div>
     </div>
+
+    {reportPanel && (
+      <ReportPanel
+        url={reportPanel.url}
+        filename={reportPanel.filename}
+        onClose={() => setReportPanel(null)}
+      />
+    )}
+    </>
   )
 }

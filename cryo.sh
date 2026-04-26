@@ -56,6 +56,7 @@ case "$CMD" in
     ;;
   up|"")
     compose_down
+    docker compose build
     docker compose up -d
     docker logs "$API_CONTAINER" -f
     ;;

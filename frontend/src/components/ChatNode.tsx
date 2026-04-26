@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react'
-import { Send, Dna, Minimize2, Maximize2, X, User } from 'lucide-react'
+import { Send, Dna, Minimize2, Maximize2, X, User, Microscope } from 'lucide-react'
 import { chat } from '../lib/api'
 import ChatMessage from './ChatMessage'
+import { CELL_LINES } from './SlashMenu'
 
 function extractFileLinks(content: string) {
   const links: { url: string; filename: string }[] = []
@@ -22,13 +23,23 @@ const SLASH_COMMANDS = [
   { command: '/vep', description: 'Variant effect prediction' },
   { command: '/targets', description: 'Disease-target associations' },
   { command: '/structure', description: 'Protein 3D structures' },
-  { command: '/digital_twin', description: 'Simulate metabolic drug response' },
+  { command: '/digital_twin', description: 'Simulate metabolic drug response — e.g. /digital_twin imatinib --cell_line MCF7' },
+  { command: '/simulate', description: 'Alias for /digital_twin' },
   { command: '/report', description: 'Generate research report' },
   { command: '/chart', description: 'Generate visualization' },
   { command: '/export', description: 'Export to Excel' },
   { command: '/compare', description: 'Compare genes/drugs' },
   { command: '/repurpose', description: 'Drug repurposing' },
 ]
+
+function detectCellLineMode(val: string): { active: boolean; filter: string } {
+  const isDigitalTwin = val.startsWith('/digital_twin') || val.startsWith('/simulate')
+  if (!isDigitalTwin) return { active: false, filter: '' }
+  const match = val.match(/--cell_line\s+(\S*)$/)
+  if (match) return { active: true, filter: match[1] }
+  if (/--cell_line$/.test(val.trimEnd())) return { active: true, filter: '' }
+  return { active: false, filter: '' }
+}
 
 interface ChatMessage {
   id: string
@@ -226,8 +237,29 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
 
       {/* Input with slash commands — nodrag nopan so typing works */}
       <div className="chat-node-input nodrag nopan nowheel relative">
-        {/* Slash menu */}
-        {/^\/\w*$/.test(input) && (
+        {/* Cell line sub-menu */}
+        {detectCellLineMode(input).active && (() => {
+          const { filter } = detectCellLineMode(input)
+          const lines = CELL_LINES.filter(cl => cl.toLowerCase().includes(filter.toLowerCase()))
+          return lines.length > 0 ? (
+            <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border-bright)] rounded-lg max-h-40 overflow-y-auto shadow-lg" style={{ zIndex: 9999 }}>
+              <div className="px-3 py-1 text-[9px] text-[var(--color-cryo-cyan)] font-mono uppercase tracking-wider border-b border-[var(--color-cryo-border)] flex items-center gap-1">
+                <Microscope className="w-2.5 h-2.5" /> Cell Lines
+              </div>
+              {lines.map(cl => (
+                <button key={cl}
+                  onClick={() => setInput(input.replace(/--cell_line\s*\S*$/, `--cell_line ${cl}`))}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--color-cryo-surface-3)] flex items-center gap-2 transition-colors"
+                >
+                  <span className="font-mono text-[var(--color-cryo-text)]">{cl}</span>
+                </button>
+              ))}
+            </div>
+          ) : null
+        })()}
+
+        {/* Slash command menu */}
+        {!detectCellLineMode(input).active && /^\/\w*$/.test(input) && (
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border-bright)] rounded-lg max-h-40 overflow-y-auto shadow-lg" style={{ zIndex: 9999 }}>
             {SLASH_COMMANDS
               .filter(c => c.command.includes(input.toLowerCase()))
@@ -237,12 +269,13 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--color-cryo-surface-3)] flex items-center gap-2 transition-colors"
                 >
                   <span className="font-mono text-[var(--color-cryo-accent)]">{cmd.command}</span>
-                  <span className="text-[var(--color-cryo-text-muted)] text-[10px]">{cmd.description}</span>
+                  <span className="text-[var(--color-cryo-text-muted)] text-[10px] truncate">{cmd.description}</span>
                 </button>
               ))
             }
           </div>
         )}
+
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}

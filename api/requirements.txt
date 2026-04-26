@@ -17,3 +17,5 @@ cobra==0.28.0
 pytest==8.2.2
 anyio==4.12.1
 pytest-asyncio==0.23.6
+polars>=0.20.0
+pyarrow>=14.0.0

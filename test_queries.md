@@ -15,10 +15,6 @@ Difficulty-graded test queries. Run each and check: tool chain, content quality,
 - [ ] `/targets Alzheimer's disease`
 - [ ] `/structure 1TUP`
 - [ ] `/pubmed CRISPR base editing 2025`
-- [ ] `/digital_twin glucose_inhibitor`
-- [ ] `/digital_twin atp_synthase_inhibitor`
-- [ ] `/digital_twin glucose_inhibitor_atp_synthase_inhibitor`
-- [ ] `/digital_twin placebo`
 
 ## Tier 2: Multi-Tool Chain
 
@@ -61,17 +57,44 @@ Difficulty-graded test queries. Run each and check: tool chain, content quality,
 
 ## Digital Twin Checks
 
-- [ ] Slash menu shows `/digital_twin`
-- [ ] `/digital_twin glucose_inhibitor` completes without backend error
-- [ ] `/digital_twin atp_synthase_inhibitor` completes without backend error
-- [ ] Combined inhibitor query returns a report and plot link
-- [ ] Report link opens successfully
-- [ ] Plot PNG link opens successfully
-- [ ] Response includes initial biomass flux
-- [ ] Response includes drug biomass flux
-- [ ] Response lists applied reaction-level drug effects
-- [ ] Response handles no-effect inputs like `placebo` cleanly
-- [ ] No auth error or missing-tool error appears in the chat response
+### Slash commands (all work in chat AND workspace nodes)
+- [ ] Slash menu shows `/digital_twin` and `/simulate`
+- [ ] `/digital_twin glucose_inhibitor` completes — shows effects on MAR09034
+- [ ] `/digital_twin atp_synthase_inhibitor` completes — shows ATP synthase effects
+- [ ] `/digital_twin imatinib --cell_line MCF7` — ChEMBL finds ABL1/KIT/PDGFRA, GPR scaling applied (1200+ reactions constrained), biomass ~8 not 62
+- [ ] `/simulate metformin --cell_line HeLa` — DGIdb lookup, GPR scaling for HeLa
+- [ ] `/digital_twin 5-fluorouracil --cell_line HCT116` — metabolic drug (TYMS), should show real flux changes
+- [ ] `/digital_twin methotrexate --cell_line A549` — metabolic drug (DHFR), should show flux changes
+- [ ] `/digital_twin unknown_compound_xyz` — no crash, honest "no target mapping" note
+- [ ] `/digital_twin` (empty) — fails gracefully
+- [ ] `/digital_twin placebo` — runs, reports no effects
+
+### What to check in each digital twin response
+- [ ] Drug target section (gene names, source: chembl/dgidb)
+- [ ] Cell line context (media preset used, GPR scaling status)
+- [ ] Biomass flux values (personalized model baseline ≠ 62.43 when GPR applied)
+- [ ] Top 10 flux shifts table (reaction IDs + delta values)
+- [ ] GDSC validation section (IC50 if data available, or "no data" statement)
+- [ ] Report link (HTML) + Plot link (PNG)
+- [ ] ### References section with DOI links (always present)
+- [ ] Disclaimer "please cross-check" appears when citations empty
+
+### Data-dependent features (require setup)
+- [ ] CCLE GPR scaling: requires `/cryo-data/ccle/ccle_expression_human1.parquet` — run `scripts/preprocess_ccle.py`
+- [ ] GDSC IC50 validation: requires `/cryo-data/gdsc/gdsc2_sensitivity.csv` — run `scripts/setup_digital_twin.py`
+
+### Best drugs to test (metabolic enzyme targets — show real effects)
+| Drug | Target gene | Why it works |
+|------|------------|--------------|
+| `metformin` | MT-ND1 (Complex I) | Targets mitochondrial metabolism |
+| `5-fluorouracil` | TYMS | Thymidylate synthase — in metabolic model |
+| `methotrexate` | DHFR | Dihydrofolate reductase — in metabolic model |
+| `2-deoxyglucose` | HK1/HK2 | Hexokinase — glycolysis |
+| `glucose_inhibitor` | MAR09034 | Hardcoded: glucose exchange |
+| `atp_synthase_inhibitor` | MAR04137 | Hardcoded: ATP synthase |
+
+### Why TKIs (imatinib, erlotinib, etc.) show 0% biomass change
+Kinase inhibitors target **signaling proteins** (ABL1, EGFR, PDGFRA) that are NOT encoded in genome-scale metabolic models. Human1 only models metabolic enzymes (transferases, oxidoreductases, transporters). TKIs still get ChEMBL target annotation and GPR scaling is still applied, but no direct reaction inhibition is possible.
 
 ## What to Check in Each Report
 

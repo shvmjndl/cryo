@@ -112,7 +112,10 @@ async def download_report(file_path: str):
         raise HTTPException(status_code=404, detail="Report not found")
 
     media_type = MEDIA_TYPES.get(filepath.suffix.lower(), "application/octet-stream")
-    return FileResponse(filepath, filename=filename, media_type=media_type)
+    # HTML served inline so iframes can render it; other types as attachment (download)
+    disposition = "inline" if filepath.suffix.lower() == ".html" else "attachment"
+    return FileResponse(filepath, filename=filename, media_type=media_type,
+                        content_disposition_type=disposition)
 
 
 _PDB_ID_RE = re.compile(r'^[0-9][A-Z0-9]{3}$')

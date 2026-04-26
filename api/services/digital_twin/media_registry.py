@@ -59,6 +59,18 @@ def _apply_import_overrides(model: cobra.Model, imports: list[dict[str, Any]]) -
     return enabled
 
 
+_CANCER_DRUG_KEYWORDS = frozenset({
+    "imatinib", "temozolomide", "erlotinib", "gefitinib", "lapatinib",
+    "trastuzumab", "paclitaxel", "taxol", "docetaxel", "cisplatin",
+    "carboplatin", "oxaliplatin", "doxorubicin", "vincristine", "vemurafenib",
+    "sorafenib", "sunitinib", "dasatinib", "nilotinib", "ibrutinib",
+    "palbociclib", "ribociclib", "abemaciclib", "olaparib", "rucaparib",
+    "pembrolizumab", "nivolumab", "metformin", "rapamycin", "everolimus",
+    "bortezomib", "carfilzomib", "lenalidomide", "thalidomide",
+    "glucose_inhibitor", "atp_synthase_inhibitor",
+})
+
+
 def select_media_preset(
     model: cobra.Model,
     simulation_context: dict[str, Any] | None = None,
@@ -68,10 +80,28 @@ def select_media_preset(
     if explicit:
         return explicit
 
+    is_human1 = _has_reaction(model, "MAR13082")
+    cell_line = str(simulation_context.get("cell_line", "")).strip()
     drug_id = str(simulation_context.get("drug_id", "")).lower()
-    if _has_reaction(model, "MAR13082") and "glucose" in drug_id:
+
+    # Cell line with CCLE data → use minimal media; GPR scaling is the contextualization.
+    # Warburg + GPR combined makes model infeasible in Human1 (over-constrained).
+    # Warburg without CCLE → reasonable approximation for generic cancer context.
+    ccle_available = simulation_context.get("ccle_available", False)
+    if cell_line and is_human1 and ccle_available:
+        return "human1_minimal"
+
+    # Cell line without CCLE data, or generic cancer drug → Warburg medium
+    if cell_line and is_human1:
+        return "cancer_warburg"
+
+    # Known cancer drug → Warburg medium (cancer cells, not normal tissue)
+    if is_human1 and any(kw in drug_id for kw in _CANCER_DRUG_KEYWORDS):
+        return "cancer_warburg"
+
+    if is_human1 and "glucose" in drug_id:
         return "human1_glucose_challenge"
-    if _has_reaction(model, "MAR13082"):
+    if is_human1:
         return "human1_minimal"
     return None
 

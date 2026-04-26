@@ -3,9 +3,10 @@
  * Single source of truth for markdown rendering, file cards, and message styling.
  */
 
-import { Dna, User, GitBranch, FileText, ExternalLink } from 'lucide-react'
+import { Dna, User, GitBranch, FileText, ExternalLink, PanelRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { StructureViewer } from './StructureViewer'
 
 export interface ChatMsg {
@@ -18,6 +19,32 @@ interface Props {
   message: ChatMsg
   compact?: boolean          // smaller text for workspace nodes
   onBranch?: (content: string) => void  // if provided, shows branch button
+}
+
+// ─── Strip :::block syntax from chat display ───
+// These blocks (:::chart, :::diagram, etc.) are for the HTML report renderer only.
+// In chat, replace with a clean icon + title line so the message stays readable.
+
+const BLOCK_ICONS: Record<string, string> = {
+  chart: '📊', diagram: '🔀', callout: '💡',
+  timeline: '📅', progress: '📈', table: '📋',
+}
+
+function cleanBlockSyntax(content: string): string {
+  // Multiline: :::type optional-title\ncontent\n:::
+  content = content.replace(/:::(\w+)[^\n]*\n([\s\S]*?):::/g, (_, type, inner) => {
+    const icon = BLOCK_ICONS[type] || '📄'
+    const firstLine = inner.trim().split('\n')[0].trim()
+    return firstLine ? `*${icon} ${firstLine}*` : ''
+  })
+  // Inline prefix on a list item: :::type rest of content :::
+  content = content.replace(/:::(chart|diagram|callout|timeline|progress|table)\s+/gi, (_, type) =>
+    `${BLOCK_ICONS[type.toLowerCase()] || '📄'} `
+  )
+  // Remove any remaining closing ::: markers
+  content = content.replace(/\s*:::\s*/g, ' ')
+  // Collapse triple+ newlines left by removed blocks
+  return content.replace(/\n{3,}/g, '\n\n')
 }
 
 // ─── 3D structure tag extraction ───
@@ -46,25 +73,21 @@ function extractFileLinks(content: string) {
   const links: { url: string; filename: string; type: string }[] = []
   const seen = new Set<string>()
 
-  // Match both nested /api/reports/.../filename and bare report_*.ext filenames.
-  const patterns = [
-    /\/api\/reports\/((?:[a-zA-Z0-9_\-]+\/)*([a-zA-Z0-9_\-]+\.(html|pdf|xlsx|png|csv|md)))/g,
-    /(?:^|\s|\()(report_[a-zA-Z0-9_\-]+\.(html|pdf|xlsx|png|csv|md))/gm,
-  ]
-
-  for (const pattern of patterns) {
-    let m
-    while ((m = pattern.exec(content)) !== null) {
-      const path = m[1]
-      const filename = m[2] || m[1]
-      if (seen.has(path)) continue
-      seen.add(path)
-      const ext = filename.split('.').pop() || ''
-      const type = ext === 'html' ? 'Interactive Report' : ext === 'pdf' ? 'PDF Report' : ext === 'xlsx' ? 'Excel' : ext === 'png' ? 'Chart' : ext === 'md' ? 'Markdown Report' : 'File'
-      const url = path.includes('/') ? `/api/reports/${path}` : `/api/reports/${filename}`
-      links.push({ url, filename, type })
-    }
+  const addLink = (filename: string) => {
+    if (!filename || seen.has(filename)) return
+    seen.add(filename)
+    const ext = filename.split('.').pop()?.toLowerCase() || ''
+    const type = ext === 'html' ? 'Interactive Report' : ext === 'pdf' ? 'PDF Report' : ext === 'xlsx' ? 'Excel' : ext === 'png' ? 'Chart' : ext === 'md' ? 'Markdown Report' : 'File'
+    links.push({ url: `/api/reports/${filename}`, filename, type })
   }
+
+  // Match report filenames anywhere in the content — works for links, code spans, plain text
+  const pat = /(report_[a-zA-Z0-9_\-]+\.(html|pdf|xlsx|png|csv|md))/g
+  let m
+  while ((m = pat.exec(content)) !== null) {
+    addLink(m[1])
+  }
+
   return links
 }
 
@@ -91,18 +114,51 @@ function getMarkdownComponents(compact: boolean): Components {
         <span className="flex-1">{children}</span>
       </li>
     ),
-    a: ({ href, children }) => (
-      <a href={href} target="_blank" rel="noopener noreferrer"
-        className="text-[var(--color-cryo-accent)] hover:text-[var(--color-cryo-cyan)] underline underline-offset-2 decoration-[var(--color-cryo-accent)]/30 transition-colors">
-        {children}
-      </a>
-    ),
+    a: ({ href, children }) => {
+      const isHtmlReport = !!href && /\/api\/reports\/.*\.html/.test(href)
+      const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+        if (!isHtmlReport || !href) return
+        e.preventDefault()
+        const filename = href.split('/').pop() || href
+        window.dispatchEvent(new CustomEvent('cryo:open-report', { detail: { url: href, filename } }))
+      }
+      return (
+        <a
+          href={href}
+          onClick={isHtmlReport ? handleClick : undefined}
+          target={isHtmlReport ? undefined : '_blank'}
+          rel="noopener noreferrer"
+          className={`underline underline-offset-2 transition-colors ${
+            isHtmlReport
+              ? 'text-[var(--color-cryo-cyan)] hover:text-[var(--color-cryo-accent)] decoration-[var(--color-cryo-cyan)]/40 cursor-pointer'
+              : 'text-[var(--color-cryo-accent)] hover:text-[var(--color-cryo-cyan)] decoration-[var(--color-cryo-accent)]/30'
+          }`}
+        >
+          {children}
+        </a>
+      )
+    },
     blockquote: ({ children }) => (
       <blockquote className="border-l-2 border-[var(--color-cryo-accent)] bg-[var(--color-cryo-accent)]/5 rounded-r-lg px-3 py-1.5 my-2 text-[var(--color-cryo-text-dim)] italic">
         {children}
       </blockquote>
     ),
     code: ({ className, children }) => {
+      const text = String(children ?? '')
+      // Inline report filename — make it clickable to open panel
+      if (!className && /^report_[a-zA-Z0-9_\-]+\.html$/.test(text.trim())) {
+        const filename = text.trim()
+        const url = `/api/reports/${filename}`
+        return (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('cryo:open-report', { detail: { url, filename } }))}
+            className={`${compact ? 'text-[10px]' : 'text-xs'} font-mono bg-[var(--color-cryo-cyan)]/10 text-[var(--color-cryo-cyan)] px-1.5 py-0.5 rounded border border-[var(--color-cryo-cyan)]/20 hover:bg-[var(--color-cryo-cyan)]/20 transition-colors cursor-pointer underline underline-offset-2`}
+            title="Click to view report"
+          >
+            {text}
+          </button>
+        )
+      }
       if (className?.includes('language-')) {
         return <code className={`block ${compact ? 'text-[10px]' : 'text-xs'} font-mono text-[var(--color-cryo-cyan)]`}>{children}</code>
       }
@@ -122,19 +178,46 @@ function getMarkdownComponents(compact: boolean): Components {
   }
 }
 
-// ─── File Card ───
+// ─── File Card — fires custom event to open right-side panel ───
 
 function FileCard({ url, filename, type }: { url: string; filename: string; type: string }) {
+  const isHtml = type === 'Interactive Report'
+
+  const openPanel = () => {
+    window.dispatchEvent(new CustomEvent('cryo:open-report', { detail: { url, filename } }))
+  }
+
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer"
-      className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-[var(--color-cryo-border-bright)] bg-[var(--color-cryo-surface-2)] hover:bg-[var(--color-cryo-surface-3)] hover:border-[var(--color-cryo-accent)]/40 transition-all group">
-      <FileText className="w-4 h-4 text-[var(--color-cryo-accent)]" />
+    <div
+      className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--color-cryo-border-bright)] bg-[var(--color-cryo-surface-2)] transition-all group ${
+        isHtml ? 'cursor-pointer hover:bg-[var(--color-cryo-cyan)]/5 hover:border-[var(--color-cryo-cyan)]/40' : 'hover:bg-[var(--color-cryo-surface-3)] hover:border-[var(--color-cryo-accent)]/40'
+      }`}
+      onClick={isHtml ? openPanel : undefined}
+      title={isHtml ? 'Click to view report' : undefined}
+    >
+      <FileText className={`w-4 h-4 flex-shrink-0 ${isHtml ? 'text-[var(--color-cryo-cyan)]' : 'text-[var(--color-cryo-accent)]'}`} />
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-[var(--color-cryo-text)] truncate">{filename}</div>
-        <div className="text-[10px] text-[var(--color-cryo-text-dim)]">{type}</div>
+        <div className="text-[10px] text-[var(--color-cryo-text-dim)]">{isHtml ? 'Click to view · ' : ''}{type}</div>
       </div>
-      <ExternalLink className="w-3 h-3 text-[var(--color-cryo-text-muted)] group-hover:text-[var(--color-cryo-accent)] transition-colors" />
-    </a>
+      <div className="flex items-center gap-1">
+        {isHtml && (
+          <span className="flex items-center gap-1 text-[10px] text-[var(--color-cryo-cyan)] opacity-60 group-hover:opacity-100 transition-opacity">
+            <PanelRight className="w-3 h-3" /> View
+          </span>
+        )}
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="p-1 rounded hover:bg-[var(--color-cryo-surface-3)] transition-colors"
+          title="Open in new tab"
+        >
+          <ExternalLink className="w-3.5 h-3.5 text-[var(--color-cryo-text-muted)] group-hover:text-[var(--color-cryo-accent)] transition-colors" />
+        </a>
+      </div>
+    </div>
   )
 }
 
@@ -142,10 +225,12 @@ function FileCard({ url, filename, type }: { url: string; filename: string; type
 
 export default function ChatMessage({ message, compact = false, onBranch }: Props) {
   const isUser = message.role === 'user'
-  const content = message.content || ''
+  const rawContent = message.content || ''
+  // Clean :::block syntax before any further processing
+  const content = isUser ? rawContent : cleanBlockSyntax(rawContent)
   const structures = isUser ? [] : extractStructures(content)
   const displayContent = structures.length > 0 ? stripStructureTags(content) : content
-  const fileLinks = extractFileLinks(displayContent)
+  const fileLinks = extractFileLinks(rawContent) // scan raw content for links (before block stripping removes urls)
   const components = getMarkdownComponents(compact)
 
   return (
@@ -163,14 +248,14 @@ export default function ChatMessage({ message, compact = false, onBranch }: Prop
 
         {/* Content */}
         <div className="flex-1 min-w-0" style={{ userSelect: 'text' }}>
-          <ReactMarkdown components={components}>{displayContent}</ReactMarkdown>
+          <ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
 
-          {/* 3D structure viewers — compact prop shrinks canvas in workspace nodes */}
+          {/* 3D structure viewers */}
           {structures.map(s => (
             <StructureViewer key={s.pdbId} pdbId={s.pdbId} title={s.title} compact={compact} />
           ))}
 
-          {/* File download cards */}
+          {/* File cards with inline viewer for HTML reports */}
           {fileLinks.length > 0 && (
             <div className="space-y-1.5">
               {fileLinks.map(link => <FileCard key={link.url} {...link} />)}

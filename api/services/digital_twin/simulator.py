@@ -29,7 +29,11 @@ def _biomass_flux(model: cobra.Model, solution: Any, fluxes: dict[str, float]) -
     return float(getattr(solution, "objective_value", 0.0) or 0.0), ""
 
 
-def simulate_drug_effect(model: cobra.Model, drug_id: str) -> dict[str, Any]:
+def simulate_drug_effect(
+    model: cobra.Model,
+    drug_id: str,
+    drug_target_info: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Run a baseline solve, apply a perturbation, and compare flux shifts."""
     try:
         baseline_solution = model.optimize()
@@ -37,7 +41,7 @@ def simulate_drug_effect(model: cobra.Model, drug_id: str) -> dict[str, Any]:
     except Exception as exc:
         return {"error": f"Initial model optimization failed: {exc}"}
 
-    perturbed_model, drug_effects = apply_drug_perturbation(model, drug_id)
+    perturbed_model, drug_effects = apply_drug_perturbation(model, drug_id, drug_target_info=drug_target_info)
 
     try:
         perturbed_solution = perturbed_model.optimize()

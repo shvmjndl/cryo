@@ -39,8 +39,13 @@ class DigitalTwinService:
     ):
         return personalize_model(model, omics_data, simulation_context)
 
-    def simulate_drug_effect(self, model, drug_id: str) -> dict[str, Any]:
-        return simulate_drug_effect(model, drug_id)
+    def simulate_drug_effect(
+        self,
+        model,
+        drug_id: str,
+        drug_target_info: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return simulate_drug_effect(model, drug_id, drug_target_info=drug_target_info)
 
     def generate_report(
         self,
@@ -48,6 +53,8 @@ class DigitalTwinService:
         user_id: str,
         conversation_id: str,
         personalization_notes: dict[str, Any] | None = None,
+        gdsc_validation: dict[str, Any] | None = None,
+        drug_target_info: dict[str, Any] | None = None,
     ) -> dict[str, str]:
         return generate_digital_twin_report(
             simulation_results,
@@ -55,6 +62,8 @@ class DigitalTwinService:
             conversation_id,
             personalization_notes=personalization_notes,
             model_metadata=self.model_metadata,
+            gdsc_validation=gdsc_validation,
+            drug_target_info=drug_target_info,
         )
 
     def simulate_drug_response(
@@ -63,34 +72,56 @@ class DigitalTwinService:
         user_id: str,
         conversation_id: str,
         drug_id: str,
+        cell_line: str = "",
         patient_omics_profile_path: str | None = None,
     ) -> dict[str, Any]:
+        from api.services.digital_twin.drug_lookup import resolve_drug_targets
+        from api.services.digital_twin.gdsc_validator import lookup_gdsc
+
+        # Resolve drug targets (ChEMBL → DGIdb → cache)
+        drug_target_info = resolve_drug_targets(self.model, drug_id)
+
         omics_data = self.load_omics_payload(patient_omics_profile_path)
         personalized_model, personalization_notes = self.personalize_model(
             self.model.copy(),
             omics_data,
             {
                 "drug_id": drug_id,
+                "cell_line": cell_line,
                 "configured_backbone": self.model_metadata.get("configured_backbone", ""),
             },
         )
-        simulation_results = self.simulate_drug_effect(personalized_model, drug_id)
+
+        simulation_results = self.simulate_drug_effect(
+            personalized_model,
+            drug_id,
+            drug_target_info=drug_target_info,
+        )
         if "error" in simulation_results:
             return simulation_results
+
+        # Experimental validation from GDSC2
+        gdsc_validation = lookup_gdsc(drug_id, cell_line) if cell_line else {}
 
         report_output = self.generate_report(
             simulation_results,
             user_id,
             conversation_id,
             personalization_notes=personalization_notes,
+            gdsc_validation=gdsc_validation,
+            drug_target_info=drug_target_info,
         )
 
         return {
             **simulation_results,
             "personalization_notes": personalization_notes,
+            "drug_target_info": drug_target_info,
+            "gdsc_validation": gdsc_validation,
+            "cell_line": cell_line,
             "report_path": report_output.get("report_path", ""),
             "plot_path": report_output.get("plot_path", ""),
             "summary": report_output.get("summary", ""),
+            "citations": report_output.get("citations", []),
         }
 
 

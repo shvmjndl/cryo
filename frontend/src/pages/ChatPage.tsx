@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Dna, Eye } from 'lucide-react'
+import { Dna, Eye, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import Sidebar from '../components/Sidebar'
 import ChatInput from '../components/ChatInput'
 import MessageBubble from '../components/MessageBubble'
+import ReportPanel from '../components/ReportPanel'
 import { chat } from '../lib/api'
 
 interface User {
@@ -40,7 +41,19 @@ export default function ChatPage({ user, onLogout }: Props) {
   const [streaming, setStreaming] = useState(false)
   const [streamText, setStreamText] = useState('')
   const [bionicMode, setBionicMode] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [reportPanel, setReportPanel] = useState<{ url: string; filename: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Listen for report open events from FileCard (deep in message tree)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { url, filename } = (e as CustomEvent).detail
+      setReportPanel({ url, filename })
+    }
+    window.addEventListener('cryo:open-report', handler)
+    return () => window.removeEventListener('cryo:open-report', handler)
+  }, [])
 
   // Load conversations
   useEffect(() => {
@@ -62,7 +75,6 @@ export default function ChatPage({ user, onLogout }: Props) {
   }, [messages, streamText])
 
   const handleSend = useCallback(async (message: string) => {
-    // Optimistically add user message
     const tempUserMsg: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -101,7 +113,6 @@ export default function ChatPage({ user, onLogout }: Props) {
         }
       }
 
-      // Finalize
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -110,11 +121,9 @@ export default function ChatPage({ user, onLogout }: Props) {
       setMessages(prev => [...prev, assistantMsg])
       setStreamText('')
 
-      // Update conversation
       if (convoId && convoId !== activeConvoId) {
         setActiveConvoId(convoId)
       }
-      // Refresh conversation list
       chat.conversations().then(setConversations).catch(console.error)
     } catch (err) {
       console.error('Stream error:', err)
@@ -129,43 +138,64 @@ export default function ChatPage({ user, onLogout }: Props) {
   }, [activeConvoId])
 
   return (
-    <div className="flex h-screen">
-      <Sidebar
-        conversations={conversations}
-        activeId={activeConvoId}
-        onSelect={setActiveConvoId}
-        onNew={() => { setActiveConvoId(null); setMessages([]) }}
-        onLogout={onLogout}
-        username={user.username}
-      />
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar — slides in/out */}
+      <div
+        className="flex-shrink-0 overflow-hidden transition-all duration-200"
+        style={{ width: sidebarOpen ? 288 : 0 }}
+      >
+        <div style={{ width: 288 }}>
+          <Sidebar
+            conversations={conversations}
+            activeId={activeConvoId}
+            onSelect={setActiveConvoId}
+            onNew={() => { setActiveConvoId(null); setMessages([]) }}
+            onLogout={onLogout}
+            username={user.username}
+          />
+        </div>
+      </div>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="px-6 py-3 border-b border-[var(--color-cryo-border)] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Dna className="w-4 h-4 text-[var(--color-cryo-accent)]" strokeWidth={1.5} />
-            <span className="text-sm font-mono text-[var(--color-cryo-text-dim)]">
-              {activeConvoId
-                ? conversations.find(c => c.id === activeConvoId)?.title || 'Research Chat'
-                : 'New Research Chat'
+        <div className="px-4 py-3 border-b border-[var(--color-cryo-border)] flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Sidebar toggle */}
+            <button
+              onClick={() => setSidebarOpen(v => !v)}
+              className="p-1.5 rounded-lg transition-colors hover:bg-[var(--color-cryo-surface-2)] text-[var(--color-cryo-text-muted)] hover:text-[var(--color-cryo-text)]"
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {sidebarOpen
+                ? <PanelLeftClose className="w-4 h-4" />
+                : <PanelLeftOpen className="w-4 h-4" />
               }
-            </span>
+            </button>
+            <div className="flex items-center gap-2">
+              <Dna className="w-4 h-4 text-[var(--color-cryo-accent)]" strokeWidth={1.5} />
+              <span className="text-sm font-mono text-[var(--color-cryo-text-dim)] truncate">
+                {activeConvoId
+                  ? conversations.find(c => c.id === activeConvoId)?.title || 'Research Chat'
+                  : 'New Research Chat'
+                }
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {import.meta.env.VITE_BIONIC_READING !== 'false' && (
-            <button
-              onClick={() => setBionicMode(!bionicMode)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                bionicMode
-                  ? 'bg-[var(--color-cryo-accent)]/15 text-[var(--color-cryo-accent)] border border-[var(--color-cryo-accent)]/30'
-                  : 'text-[var(--color-cryo-text-muted)] hover:text-[var(--color-cryo-text-dim)] border border-transparent hover:border-[var(--color-cryo-border)]'
-              }`}
-              title="Bionic Reading — bolds first half of each word for faster reading"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Bionic
-            </button>
+              <button
+                onClick={() => setBionicMode(!bionicMode)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  bionicMode
+                    ? 'bg-[var(--color-cryo-accent)]/15 text-[var(--color-cryo-accent)] border border-[var(--color-cryo-accent)]/30'
+                    : 'text-[var(--color-cryo-text-muted)] hover:text-[var(--color-cryo-text-dim)] border border-transparent hover:border-[var(--color-cryo-border)]'
+                }`}
+                title="Bionic Reading — bolds first half of each word for faster reading"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Bionic
+              </button>
             )}
             <span className="text-xs font-mono text-[var(--color-cryo-text-muted)]">
               LLM powered
@@ -208,14 +238,9 @@ export default function ChatPage({ user, onLogout }: Props) {
             <MessageBubble key={msg.id} message={msg} bionicMode={bionicMode} />
           ))}
 
-          {/* Streaming indicator */}
           {streaming && streamText && (
             <MessageBubble
-              message={{
-                id: 'streaming',
-                role: 'assistant',
-                content: streamText + '...',
-              }}
+              message={{ id: 'streaming', role: 'assistant', content: streamText + '...' }}
               bionicMode={bionicMode}
             />
           )}
@@ -242,10 +267,19 @@ export default function ChatPage({ user, onLogout }: Props) {
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-[var(--color-cryo-border)]">
+        <div className="p-4 border-t border-[var(--color-cryo-border)] flex-shrink-0">
           <ChatInput onSend={handleSend} disabled={streaming} />
         </div>
       </div>
+
+      {/* Right-side report panel — rendered at top level so it overlays everything */}
+      {reportPanel && (
+        <ReportPanel
+          url={reportPanel.url}
+          filename={reportPanel.filename}
+          onClose={() => setReportPanel(null)}
+        />
+      )}
     </div>
   )
 }

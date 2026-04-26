@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Send, Dna } from 'lucide-react'
-import SlashMenu, { type SlashCommand } from './SlashMenu'
+import SlashMenu, { type SlashCommand, CELL_LINES } from './SlashMenu'
 
 const DEFAULT_COMMANDS: SlashCommand[] = [
   { command: '/pubmed', description: 'Search PubMed literature', example: '/pubmed CRISPR glioblastoma' },
@@ -12,13 +12,25 @@ const DEFAULT_COMMANDS: SlashCommand[] = [
   { command: '/variant', description: 'Variant clinical significance', example: '/variant rs28934578' },
   { command: '/vep', description: 'Variant effect prediction', example: '/vep 17:7675088:C:T' },
   { command: '/repurpose', description: 'Drug repurposing candidates', example: '/repurpose Huntington disease' },
-  { command: '/digital_twin', description: 'Simulate metabolic drug response', example: '/digital_twin glucose_inhibitor' },
+  { command: '/digital_twin', description: 'Simulate metabolic drug response', example: '/digital_twin imatinib --cell_line MCF7' },
+  { command: '/simulate', description: 'Alias for /digital_twin', example: '/simulate metformin --cell_line HeLa' },
   { command: '/pathway', description: 'Explore biological pathways', example: '/pathway p53 signaling' },
   { command: '/compare', description: 'Compare genes/proteins/drugs', example: '/compare BRCA1 BRCA2' },
   { command: '/export', description: 'Export data to Excel', example: '/export TP53 variants' },
-  { command: '/report', description: 'Generate PDF report', example: '/report glioblastoma drug targets' },
+  { command: '/report', description: 'Generate interactive HTML report', example: '/report glioblastoma drug targets' },
   { command: '/chart', description: 'Generate visualization', example: '/chart cancer mutation frequency' },
 ]
+
+// Detect if user has typed --cell_line (with optional partial name after it)
+function detectCellLineMode(val: string): { active: boolean; filter: string } {
+  const isDigitalTwin = val.startsWith('/digital_twin') || val.startsWith('/simulate')
+  if (!isDigitalTwin) return { active: false, filter: '' }
+  const match = val.match(/--cell_line\s+(\S*)$/)
+  if (match) return { active: true, filter: match[1] }
+  // also trigger when --cell_line is the last thing typed (no space yet)
+  if (/--cell_line$/.test(val.trimEnd())) return { active: true, filter: '' }
+  return { active: false, filter: '' }
+}
 
 interface Props {
   onSend: (message: string) => void
@@ -30,11 +42,17 @@ export default function ChatInput({ onSend, disabled }: Props) {
   const [showSlash, setShowSlash] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [cellLineMode, setCellLineMode] = useState(false)
+  const [cellLineFilter, setCellLineFilter] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const filtered = DEFAULT_COMMANDS.filter(c =>
+  const filteredCommands = DEFAULT_COMMANDS.filter(c =>
     c.command.includes(slashFilter.toLowerCase()) ||
     c.description.toLowerCase().includes(slashFilter.toLowerCase())
+  )
+
+  const filteredCellLines = CELL_LINES.filter(cl =>
+    cl.toLowerCase().includes(cellLineFilter.toLowerCase())
   )
 
   // Auto-resize textarea
@@ -49,45 +67,78 @@ export default function ChatInput({ onSend, disabled }: Props) {
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setInput(val)
+    setSelectedIndex(0)
 
-    // Detect slash at start of input or after newline
+    // Cell line sub-menu takes priority when --cell_line detected
+    const clMode = detectCellLineMode(val)
+    if (clMode.active) {
+      setCellLineMode(true)
+      setCellLineFilter(clMode.filter)
+      setShowSlash(false)
+      return
+    }
+
+    setCellLineMode(false)
+
+    // Slash command menu: only when input is purely a slash command fragment
     if (val === '/' || val.match(/^\/\w*$/)) {
       setShowSlash(true)
       setSlashFilter(val)
-      setSelectedIndex(0)
     } else {
       setShowSlash(false)
     }
   }, [])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (showSlash) {
+    const menuOpen = showSlash || cellLineMode
+    const listLength = cellLineMode ? filteredCellLines.length : filteredCommands.length
+
+    if (menuOpen) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex(i => Math.min(i + 1, filtered.length - 1))
-      } else if (e.key === 'ArrowUp') {
+        setSelectedIndex(i => Math.min(i + 1, listLength - 1))
+        return
+      }
+      if (e.key === 'ArrowUp') {
         e.preventDefault()
         setSelectedIndex(i => Math.max(i - 1, 0))
-      } else if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault()
-        if (filtered[selectedIndex]) {
-          selectCommand(filtered[selectedIndex])
-        }
-      } else if (e.key === 'Escape') {
-        setShowSlash(false)
+        return
       }
-      return
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        if (cellLineMode && filteredCellLines[selectedIndex]) {
+          selectCellLine(filteredCellLines[selectedIndex])
+        } else if (showSlash && filteredCommands[selectedIndex]) {
+          selectCommand(filteredCommands[selectedIndex])
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        setShowSlash(false)
+        setCellLineMode(false)
+        return
+      }
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
-  }, [showSlash, filtered, selectedIndex, input])
+  }, [showSlash, cellLineMode, filteredCommands, filteredCellLines, selectedIndex, input])
 
   const selectCommand = (cmd: SlashCommand) => {
     setInput(cmd.command + ' ')
     setShowSlash(false)
+    setSelectedIndex(0)
+    textareaRef.current?.focus()
+  }
+
+  const selectCellLine = (cellLine: string) => {
+    // Replace partial name after --cell_line with the selected line
+    const newVal = input.replace(/--cell_line\s*\S*$/, `--cell_line ${cellLine}`)
+    setInput(newVal)
+    setCellLineMode(false)
+    setSelectedIndex(0)
     textareaRef.current?.focus()
   }
 
@@ -97,7 +148,10 @@ export default function ChatInput({ onSend, disabled }: Props) {
     onSend(trimmed)
     setInput('')
     setShowSlash(false)
+    setCellLineMode(false)
   }
+
+  const menuVisible = showSlash || cellLineMode
 
   return (
     <div className="relative">
@@ -106,7 +160,10 @@ export default function ChatInput({ onSend, disabled }: Props) {
         filter={slashFilter}
         selectedIndex={selectedIndex}
         onSelect={selectCommand}
-        visible={showSlash}
+        visible={menuVisible}
+        mode={cellLineMode ? 'cell_lines' : 'commands'}
+        cellLineFilter={cellLineFilter}
+        onSelectCellLine={selectCellLine}
       />
 
       <div className="flex items-end gap-2 p-3 rounded-xl bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border)] focus-within:border-[var(--color-cryo-accent)] transition-colors">

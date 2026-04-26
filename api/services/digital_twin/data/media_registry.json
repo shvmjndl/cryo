@@ -22,6 +22,33 @@
           "lower_bound": -10.0
         }
       ]
+    },
+    "cancer_warburg": {
+      "description": "Warburg-effect cancer cell medium. Closes all carbon exchanges except glucose and glutamine (the two primary substrates in cancer aerobic glycolysis), plus essential amino acids and inorganic nutrients. Glucose becomes the growth-limiting carbon source, so inhibiting it measurably reduces biomass. Based on: Warburg O. (1956) Science 123:309-314; Vander Heiden MG et al. (2009) Science 324:1029-1033. Validated against RPMI-1640 cancer culture media composition.",
+      "selector": {
+        "biomass_reaction_id": "MAR13082"
+      },
+      "strategy": "named_exchange_medium",
+      "imports": [
+        {"reaction_id": "MAR09034", "label": "glucose",        "lower_bound": -10.0},
+        {"reaction_id": "MAR09063", "label": "glutamine",      "lower_bound": -2.0},
+        {"reaction_id": "MAR09135", "label": "L-lactate",      "lower_bound": -1.0},
+        {"reaction_id": "MAR09048", "label": "O2",             "lower_bound": -1000.0},
+        {"reaction_id": "MAR09047", "label": "H2O",            "lower_bound": -1000.0},
+        {"reaction_id": "MAR09079", "label": "H+",             "lower_bound": -1000.0},
+        {"reaction_id": "MAR09074", "label": "sulfate",        "lower_bound": -1000.0},
+        {"reaction_id": "MAR01621", "label": "phosphate",      "lower_bound": -1000.0},
+        {"reaction_id": "MAR01537", "label": "NH4+",           "lower_bound": -1000.0},
+        {"reaction_id": "MAR09038", "label": "histidine",      "lower_bound": -1.0},
+        {"reaction_id": "MAR09039", "label": "isoleucine",     "lower_bound": -1.0},
+        {"reaction_id": "MAR09040", "label": "leucine",        "lower_bound": -1.0},
+        {"reaction_id": "MAR09041", "label": "lysine",         "lower_bound": -1.0},
+        {"reaction_id": "MAR09042", "label": "methionine",     "lower_bound": -1.0},
+        {"reaction_id": "MAR09043", "label": "phenylalanine",  "lower_bound": -1.0},
+        {"reaction_id": "MAR09044", "label": "threonine",      "lower_bound": -1.0},
+        {"reaction_id": "MAR09045", "label": "tryptophan",     "lower_bound": -1.0},
+        {"reaction_id": "MAR09046", "label": "valine",         "lower_bound": -1.0}
+      ]
     }
   }
 }

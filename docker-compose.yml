@@ -42,6 +42,8 @@ services:
     volumes:
       - ./api:/app/api
       - ./hermes-agent:/app/hermes-agent
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
       - ./SOUL.md:/app/SOUL.md:ro
       - ./cryo-data:/cryo-data
 
