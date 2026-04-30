@@ -3,7 +3,7 @@ import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react'
 import { Send, Dna, Minimize2, Maximize2, X, User, Microscope } from 'lucide-react'
 import { chat, type UploadRecord } from '../lib/api'
 import ChatMessage from './ChatMessage'
-import { CELL_LINES } from './SlashMenu'
+import { CELL_LINES, GEM_MODELS, type GemModel } from './SlashMenu'
 import FileUploadButton from './FileUploadButton'
 
 function extractFileLinks(content: string) {
@@ -37,6 +37,7 @@ const SLASH_COMMANDS = [
   { command: '/meta',        description: 'Metagenomics pipeline' },
   { command: '/ms',          description: 'Mass-spec proteomics' },
   { command: '/sec',         description: 'SEC chromatography' },
+  { command: '/gem',         description: 'GEM metabolic graph query' },
   { command: '/novelty',     description: 'Research novelty check' },
   { command: '/paper',       description: 'Manuscript pipeline' },
   { command: '/report',      description: 'Generate research report' },
@@ -49,9 +50,18 @@ const SLASH_COMMANDS = [
 function detectCellLineMode(val: string): { active: boolean; filter: string } {
   const isDigitalTwin = val.startsWith('/digital_twin') || val.startsWith('/simulate')
   if (!isDigitalTwin) return { active: false, filter: '' }
-  const match = val.match(/--cell_line\s+(\S*)$/)
+  const match = val.match(/--cell[_\-]?line\s+(\S*)$/)
   if (match) return { active: true, filter: match[1] }
-  if (/--cell_line$/.test(val.trimEnd())) return { active: true, filter: '' }
+  if (/--cell[_\-]?line$/.test(val.trimEnd())) return { active: true, filter: '' }
+  return { active: false, filter: '' }
+}
+
+function detectModelMode(val: string): { active: boolean; filter: string } {
+  const isDigitalTwinOrGem = val.startsWith('/digital_twin') || val.startsWith('/simulate') || val.startsWith('/gem')
+  if (!isDigitalTwinOrGem) return { active: false, filter: '' }
+  const match = val.match(/--(?:model|backbone)\s+(\S*)$/)
+  if (match) return { active: true, filter: match[1] }
+  if (/--(?:model|backbone)$/.test(val.trimEnd())) return { active: true, filter: '' }
   return { active: false, filter: '' }
 }
 
@@ -251,8 +261,39 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
 
       {/* Input with slash commands — nodrag nopan so typing works */}
       <div className="chat-node-input nodrag nopan nowheel relative">
+        {/* Model sub-menu — shown before cell line check */}
+        {detectModelMode(input).active && (() => {
+          const { filter } = detectModelMode(input)
+          const models = GEM_MODELS.filter(m =>
+            m.key.toLowerCase().includes(filter.toLowerCase()) ||
+            m.label.toLowerCase().includes(filter.toLowerCase()) ||
+            m.organism.toLowerCase().includes(filter.toLowerCase())
+          )
+          return models.length > 0 ? (
+            <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border-bright)] rounded-lg max-h-48 overflow-y-auto shadow-lg" style={{ zIndex: 9999 }}>
+              <div className="px-3 py-1 text-[9px] text-[var(--color-cryo-accent)] font-mono uppercase tracking-wider border-b border-[var(--color-cryo-border)] flex items-center gap-1">
+                <Dna className="w-2.5 h-2.5" /> Metabolic Model
+              </div>
+              {models.map(m => (
+                <button key={m.key}
+                  onClick={() => setInput(input.replace(/--(?:model|backbone)\s*\S*$/, `--model ${m.key}`))}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--color-cryo-surface-3)] flex items-center gap-2 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[var(--color-cryo-text)]">{m.label}</span>
+                      <span className="text-[9px] text-[var(--color-cryo-cyan)] bg-[var(--color-cryo-surface-3)] px-1 py-0.5 rounded font-mono">{m.organism}</span>
+                    </div>
+                    <div className="text-[9px] text-[var(--color-cryo-text-muted)]">{m.description}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null
+        })()}
+
         {/* Cell line sub-menu */}
-        {detectCellLineMode(input).active && (() => {
+        {!detectModelMode(input).active && detectCellLineMode(input).active && (() => {
           const { filter } = detectCellLineMode(input)
           const lines = CELL_LINES.filter(cl => cl.toLowerCase().includes(filter.toLowerCase()))
           return lines.length > 0 ? (
@@ -262,7 +303,7 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
               </div>
               {lines.map(cl => (
                 <button key={cl}
-                  onClick={() => setInput(input.replace(/--cell_line\s*\S*$/, `--cell_line ${cl}`))}
+                  onClick={() => setInput(input.replace(/--cell[_\-]?line\s*\S*$/, `--cell_line ${cl}`))}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--color-cryo-surface-3)] flex items-center gap-2 transition-colors"
                 >
                   <span className="font-mono text-[var(--color-cryo-text)]">{cl}</span>
@@ -273,7 +314,7 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
         })()}
 
         {/* Slash command menu */}
-        {!detectCellLineMode(input).active && /^\/\w*$/.test(input) && (
+        {!detectModelMode(input).active && !detectCellLineMode(input).active && /^\/\w*$/.test(input) && (
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border-bright)] rounded-lg max-h-40 overflow-y-auto shadow-lg" style={{ zIndex: 9999 }}>
             {SLASH_COMMANDS
               .filter(c => c.command.includes(input.toLowerCase()))

@@ -3,9 +3,9 @@ from __future__ import annotations
 import os
 
 import cobra
-from cobra.io import read_sbml_model
+from cobra.io import read_sbml_model, load_json_model
 
-from api.services.digital_twin.model_registry import resolve_verified_backbone
+from api.services.digital_twin.model_registry import resolve_verified_backbone, normalize_backbone_name
 
 
 def _build_demo_model() -> cobra.Model:
@@ -55,19 +55,37 @@ def _build_demo_model() -> cobra.Model:
     return model
 
 
-def load_backbone_model() -> tuple[cobra.Model, dict]:
-    """Load a verified or local SBML backbone when configured, otherwise fall back to the demo model."""
+def _load_model_from_path(path: str) -> cobra.Model:
+    """Load SBML (.xml) or BiGG JSON (.json) model. Raises on unknown extension."""
+    p = path.lower()
+    if p.endswith(".json"):
+        return load_json_model(path)
+    if p.endswith(".xml") or p.endswith(".sbml"):
+        return read_sbml_model(path)
+    # Try SBML as default
+    return read_sbml_model(path)
+
+
+def load_backbone_model(backbone_name: str | None = None) -> tuple[cobra.Model, dict]:
+    """
+    Load a verified or local backbone model.
+
+    backbone_name overrides the CRYO_DIGITAL_TWIN_BACKBONE env var.
+    Falls back to the demo model when no path resolves.
+    """
+    effective_backbone = backbone_name or os.getenv("CRYO_DIGITAL_TWIN_BACKBONE", "")
     resolution = resolve_verified_backbone(
-        backbone_name=os.getenv("CRYO_DIGITAL_TWIN_BACKBONE", ""),
-        model_path=os.getenv("CRYO_DIGITAL_TWIN_MODEL_PATH", ""),
+        backbone_name=effective_backbone,
+        model_path=os.getenv("CRYO_DIGITAL_TWIN_MODEL_PATH", "") if not backbone_name else "",
         auto_fetch=os.getenv("CRYO_DIGITAL_TWIN_AUTO_FETCH", "true").lower() == "true",
     )
 
     loaded_model_path = resolution.get("loaded_model_path", "")
     if loaded_model_path:
-        model = read_sbml_model(loaded_model_path)
+        model = _load_model_from_path(loaded_model_path)
         model.notes["cryo_model_source"] = resolution.get("source", "sbml")
         model.notes["cryo_model_path"] = loaded_model_path
+        model.notes["cryo_backbone"] = normalize_backbone_name(effective_backbone) or "unknown"
         return model, resolution
 
     metadata = {

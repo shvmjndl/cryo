@@ -23,6 +23,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   'output':      'Reports & Output',
 }
 
+export interface GemModel {
+  key: string
+  label: string
+  organism: string
+  description: string
+}
+
+export const GEM_MODELS: GemModel[] = [
+  { key: 'human1',  label: 'Human1',  organism: 'H. sapiens',         description: '12,931 rxns · 2,848 genes' },
+  { key: 'ijo1366', label: 'iJO1366', organism: 'E. coli K-12',       description: '2,583 rxns · 1,366 genes' },
+  { key: 'yeast8',  label: 'Yeast8',  organism: 'S. cerevisiae',       description: '3,991 rxns · 1,149 genes' },
+  { key: 'recon3d', label: 'Recon3D', organism: 'H. sapiens (3D)',     description: '13,543 rxns · protein structure links' },
+]
+
 export const CELL_LINES: string[] = [
   'MCF7', 'HeLa', 'A549', 'HCT116', 'PC3', 'LNCaP', 'U87MG', 'HepG2',
   'K562', 'Jurkat', 'T98G', 'MDA-MB-231', 'SK-BR-3', 'BT474', 'ZR75-1',
@@ -123,14 +137,18 @@ interface Props {
   onSelect: (cmd: SlashCommand) => void
   visible: boolean
   // Cell line sub-menu
-  mode?: 'commands' | 'cell_lines'
+  mode?: 'commands' | 'cell_lines' | 'models'
   cellLineFilter?: string
   onSelectCellLine?: (line: string) => void
+  // Model sub-menu
+  modelFilter?: string
+  onSelectModel?: (model: GemModel) => void
 }
 
 export default function SlashMenu({
   commands, filter, selectedIndex, onSelect, visible,
   mode = 'commands', cellLineFilter = '', onSelectCellLine,
+  modelFilter = '', onSelectModel,
 }: Props) {
   const menuRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -149,9 +167,55 @@ export default function SlashMenu({
     itemRefs.current[selectedIndex]?.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex])
 
+  const filteredModels = GEM_MODELS.filter(m =>
+    m.key.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    m.label.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    m.organism.toLowerCase().includes(modelFilter.toLowerCase())
+  )
+
   if (!visible) return null
   if (mode === 'commands' && filteredCommands.length === 0) return null
   if (mode === 'cell_lines' && filteredCellLines.length === 0) return null
+  if (mode === 'models' && filteredModels.length === 0) return null
+
+  if (mode === 'models') {
+    return (
+      <div
+        ref={menuRef}
+        className="slash-menu absolute bottom-full left-0 right-0 mb-2 rounded-xl bg-[var(--color-cryo-surface-2)] max-h-60 overflow-y-auto z-50"
+      >
+        <div className="px-3 py-2 text-xs text-[var(--color-cryo-accent)] font-mono uppercase tracking-wider border-b border-[var(--color-cryo-border)] flex items-center gap-2">
+          <Dna className="w-3 h-3" />
+          Metabolic Model <span className="text-[var(--color-cryo-text-muted)] normal-case">({filteredModels.length} available)</span>
+        </div>
+        {filteredModels.map((m, i) => (
+          <div
+            key={m.key}
+            ref={el => { itemRefs.current[i] = el }}
+            onClick={() => onSelectModel?.(m)}
+            className={`
+              flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors
+              ${i === selectedIndex ? 'bg-[var(--color-cryo-surface-3)]' : 'hover:bg-[var(--color-cryo-surface-3)]'}
+            `}
+          >
+            <Dna className="w-3.5 h-3.5 text-[var(--color-cryo-accent)] flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-[var(--color-cryo-text)]">{m.label}</span>
+                <span className="text-[10px] text-[var(--color-cryo-cyan)] bg-[var(--color-cryo-surface-3)] px-1.5 py-0.5 rounded-full font-mono">
+                  {m.organism}
+                </span>
+              </div>
+              <div className="text-[10px] text-[var(--color-cryo-text-muted)] mt-0.5">{m.description}</div>
+            </div>
+            {i === selectedIndex && (
+              <span className="text-xs text-[var(--color-cryo-text-muted)] font-mono">enter</span>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   if (mode === 'cell_lines') {
     return (

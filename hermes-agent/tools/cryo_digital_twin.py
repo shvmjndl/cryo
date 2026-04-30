@@ -11,6 +11,7 @@ def _digital_twin(args: dict, **_kw) -> str:
     drug_id = args.get("drug_id")
     cell_line = args.get("cell_line", "")
     tissue = args.get("tissue", "")
+    backbone = args.get("backbone", "")
     patient_omics_profile_path = args.get("patient_omics_profile_path")
 
     api_base_url = os.getenv("CRYO_API_URL", "http://localhost:8000")
@@ -28,6 +29,7 @@ def _digital_twin(args: dict, **_kw) -> str:
         "conversation_id": cryo_conversation_id,
         "drug_id": drug_id,
         "cell_line": cell_line or tissue or None,
+        "backbone": backbone or None,
         "patient_omics_profile_path": patient_omics_profile_path,
     }
 
@@ -73,7 +75,19 @@ DIGITAL_TWIN_SCHEMA = {
                     "Cancer cell line identifier for CCLE-based personalization (e.g. 'MCF7', "
                     "'HeLa', 'A549', 'HCT116', 'PC-3', 'LNCaP', 'U87', 'HepG2', 'K562'). "
                     "When provided, applies GPR-based expression scaling from CCLE data and "
-                    "uses the cancer Warburg media preset. Also enables GDSC2 IC50 lookup."
+                    "uses the cancer Warburg media preset. Also enables GDSC2 IC50 lookup. "
+                    "Only applicable for human models."
+                ),
+            },
+            "backbone": {
+                "type": "string",
+                "description": (
+                    "Genome-scale metabolic model to use. Options: "
+                    "'human1' (default — H. sapiens, 12,931 rxns), "
+                    "'ijo1366' (E. coli K-12, 2,583 rxns — use for antibiotic research), "
+                    "'yeast8' (S. cerevisiae, 3,991 rxns — use for antifungal research), "
+                    "'recon3d' (human with 3D protein structure links). "
+                    "Defaults to 'human1' if not specified."
                 ),
             },
             "tissue": {

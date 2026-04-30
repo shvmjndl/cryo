@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import cobra
+from api.services.digital_twin.organism import detect_organism
 
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -80,29 +81,43 @@ def select_media_preset(
     if explicit:
         return explicit
 
-    is_human1 = _has_reaction(model, "MAR13082")
-    cell_line = str(simulation_context.get("cell_line", "")).strip()
+    organism = detect_organism(model)
     drug_id = str(simulation_context.get("drug_id", "")).lower()
 
-    # Cell line with CCLE data → use minimal media; GPR scaling is the contextualization.
-    # Warburg + GPR combined makes model infeasible in Human1 (over-constrained).
-    # Warburg without CCLE → reasonable approximation for generic cancer context.
+    # ── Microbial / non-human organisms ───────────────────────────────────────
+    if organism == "ecoli":
+        # Anaerobic condition for drugs that require it (e.g. metronidazole)
+        anaerobic_drugs = {"metronidazole", "tinidazole", "nitrofurantoin"}
+        if any(kw in drug_id for kw in anaerobic_drugs):
+            return "ecoli_m9_anaerobic"
+        return "ecoli_m9_aerobic"
+
+    if organism == "yeast":
+        return "yeast_sc_minimal"
+
+    # ── Human models ──────────────────────────────────────────────────────────
+    is_human1 = _has_reaction(model, "MAR13082")
+    cell_line = str(simulation_context.get("cell_line", "")).strip()
     ccle_available = simulation_context.get("ccle_available", False)
+
+    # Cell line with CCLE data → minimal media; GPR scaling is the contextualization.
+    # Warburg + GPR combined is over-constrained in Human1.
     if cell_line and is_human1 and ccle_available:
         return "human1_minimal"
 
-    # Cell line without CCLE data, or generic cancer drug → Warburg medium
+    # Cell line without CCLE, or known cancer drug → Warburg
     if cell_line and is_human1:
         return "cancer_warburg"
 
-    # Known cancer drug → Warburg medium (cancer cells, not normal tissue)
     if is_human1 and any(kw in drug_id for kw in _CANCER_DRUG_KEYWORDS):
         return "cancer_warburg"
 
     if is_human1 and "glucose" in drug_id:
         return "human1_glucose_challenge"
+
     if is_human1:
         return "human1_minimal"
+
     return None
 
 

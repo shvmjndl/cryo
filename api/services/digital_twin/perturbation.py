@@ -12,6 +12,9 @@ from typing import Any
 
 import cobra
 
+from api.services.digital_twin.organism import detect_organism
+from api.services.digital_twin.pathogen_targets import lookup_pathogen_targets
+
 logger = logging.getLogger("cryo.perturbation")
 
 _INHIBITION_FRACTION = 0.10  # 90% inhibition → target at 10% capacity
@@ -95,6 +98,35 @@ def apply_drug_perturbation(
             return perturbed, effects
 
         logger.info("No Human1 reactions found for drug targets of %s — falling back to hardcoded patterns", drug_id)
+
+    # ── Path 1b: Pathogen-specific curated targets (ecoli / yeast) ───────────
+    organism = detect_organism(perturbed)
+    if organism in ("ecoli", "yeast"):
+        pathogen_info = lookup_pathogen_targets(organism, drug_id)
+        if pathogen_info and pathogen_info.get("reaction_ids"):
+            logger.info("Using pathogen target DB for %s (%s): reactions=%s",
+                        drug_id, organism, pathogen_info["reaction_ids"])
+            applied_count = 0
+            for rxn_id in pathogen_info["reaction_ids"]:
+                if _inhibit_reaction(perturbed, rxn_id, effects):
+                    applied_count += 1
+            if applied_count > 0:
+                gene_str = pathogen_info["targets"][0]["gene_symbol"] if pathogen_info.get("targets") else "?"
+                mech = pathogen_info["targets"][0].get("mechanism", "") if pathogen_info.get("targets") else ""
+                effects["_summary"] = (
+                    f"{drug_id}: target gene={gene_str}. "
+                    f"{mech}. "
+                    f"{applied_count} reactions inhibited (90%) — pathogen target DB."
+                )
+                return perturbed, effects
+            else:
+                note = pathogen_info.get("note", "")
+                effects["_note"] = (
+                    f"{drug_id} targets {pathogen_info['targets'][0]['gene_symbol'] if pathogen_info.get('targets') else '?'} "
+                    f"but its reactions are not in this model. {note}"
+                )
+                logger.info("Pathogen target found but no model reactions for %s", drug_id)
+                return perturbed, effects
 
     # ── Path 2: Legacy hardcoded patterns (backward compat) ───────────────────
 

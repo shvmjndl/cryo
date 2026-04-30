@@ -114,6 +114,17 @@ SLASH_TRANSLATORS = {
         "Use the sec_report tool. Ask for the CSV data file path. "
         "Explain oligomeric state classification and quality scoring."
     ),
+    # ── GEM graph ──
+    "/gem": (
+        "Query the genome-scale metabolic model (GEM) knowledge graph for: {query}. "
+        "Use the gem_graph tool. Actions: "
+        "'query' to search metabolites/reactions/genes, "
+        "'gene' to explore a gene's reaction neighborhood, "
+        "'reaction' for reaction details, "
+        "'stats' for model statistics, "
+        "'essential_genes' to list computationally essential genes. "
+        "Default backbone is 'human1'. For E. coli use backbone='ijo1366', for yeast use backbone='yeast8'."
+    ),
     # ── Research workflow tools ──
     "/novelty": (
         "Check research novelty for this idea: {query}. "
@@ -158,6 +169,8 @@ SLASH_COMMANDS = [
     {"command": "/meta", "description": "Metagenomics pipeline (Kraken2 + HUMAnN3)", "example": "/meta sample_R1.fastq.gz"},
     {"command": "/ms", "description": "Mass spectrometry proteomics (MaxQuant/DIA-NN)", "example": "/ms proteinGroups.txt"},
     {"command": "/sec", "description": "SEC chromatography peak analysis", "example": "/sec sec_data.csv"},
+    # ── GEM graph ──
+    {"command": "/gem", "description": "Query GEM metabolite–reaction–gene knowledge graph", "example": "/gem glucose reactions --model ijo1366"},
     # ── Research workflow ──
     {"command": "/novelty", "description": "Research novelty / saturation check", "example": "/novelty CRISPR base editing sickle cell"},
     {"command": "/paper", "description": "Full manuscript planning pipeline", "example": "/paper spatial transcriptomics TNBC"},
@@ -198,13 +211,15 @@ def translate_slash_command(message: str) -> str:
     return message
 
 
-def _extract_digital_twin_query(message: str) -> tuple[str | None, str]:
-    """Parse /digital_twin <drug_id> [--cell_line <name>] or /simulate variant.
-    Returns (drug_id, cell_line). drug_id is None if not matched."""
+def _extract_digital_twin_query(message: str) -> tuple[str | None, str, str]:
+    """
+    Parse /digital_twin <drug_id> [--cell_line <name>] [--model <backbone>]
+    Returns (drug_id, cell_line, backbone). drug_id is None if not matched.
+    """
     msg = message.strip()
     pattern = re.match(r"^/(?:digital_twin|simulate)\s+(.+)$", msg, re.IGNORECASE)
     if not pattern:
-        return None, ""
+        return None, "", ""
 
     raw = pattern.group(1).strip()
 
@@ -215,8 +230,15 @@ def _extract_digital_twin_query(message: str) -> tuple[str | None, str]:
         cell_line = cl_match.group(1)
         raw = (raw[:cl_match.start()] + raw[cl_match.end():]).strip()
 
+    # Extract --model / --backbone flag
+    backbone = ""
+    m_match = re.search(r"--(?:model|backbone)\s+(\S+)", raw, re.IGNORECASE)
+    if m_match:
+        backbone = m_match.group(1)
+        raw = (raw[:m_match.start()] + raw[m_match.end():]).strip()
+
     drug_id = raw.strip() or None
-    return drug_id, cell_line
+    return drug_id, cell_line, backbone
 
 
 def _format_digital_twin_response(drug_id: str, result: dict[str, Any]) -> str:
@@ -225,6 +247,8 @@ def _format_digital_twin_response(drug_id: str, result: dict[str, Any]) -> str:
     delta = drug_flux - initial_flux
     percent_change = 0.0 if initial_flux == 0 else (delta / initial_flux) * 100
     cell_line = result.get("cell_line", "")
+    organism_disp = result.get("organism_display", "")
+    backbone = result.get("backbone", "")
 
     if percent_change <= -5:
         outcome = f"Predicted growth suppression ({abs(percent_change):.1f}%)"
@@ -251,12 +275,23 @@ def _format_digital_twin_response(drug_id: str, result: dict[str, Any]) -> str:
         f"**Outcome:** {outcome}",
     ]
 
+    # Organism / model context
+    if organism_disp:
+        backbone_str = f" (`{backbone}`)" if backbone else ""
+        lines.extend(["", f"**Model:** {organism_disp}{backbone_str}"])
+
     # Drug target info
     targets = drug_target_info.get("targets", [])
     if targets:
+        source = drug_target_info.get("source", "ChEMBL/DGIdb")
+        src_label = {
+            "pathogen_targets_db": "Pathogen Target DB",
+            "chembl": "ChEMBL",
+            "dgidb": "DGIdb",
+        }.get(source, source)
         gene_list = ", ".join(t["gene_symbol"] for t in targets[:5])
         mech = targets[0].get("mechanism", "")
-        lines.extend(["", f"**Drug targets (ChEMBL/DGIdb):** {gene_list}"])
+        lines.extend(["", f"**Drug targets ({src_label}):** {gene_list}"])
         if mech:
             lines.extend(["", f"**Mechanism:** {mech}"])
 
@@ -398,7 +433,8 @@ class HermesBridge:
             enabled_toolsets=[
                 "cryo_literature", "cryo_protein", "cryo_drug",
                 "cryo_variant", "cryo_reports", "cryo_vlm",
-                "cryo_digital_twin",
+                "cryo_digital_twin", "cryo_gem_graph",
+                "cryo_omics_databases", "cryo_analysis_skills",
                 "cryo_deep_research", "cryo_cosight",
                 "cryo_scientific_skills",
             ],
@@ -408,33 +444,28 @@ class HermesBridge:
         self, message: str, history: list[dict[str, str]] | None = None,
         user_id: str = "", conversation_id: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
-        digital_twin_query, cell_line = _extract_digital_twin_query(message)
+        digital_twin_query, cell_line, backbone = _extract_digital_twin_query(message)
         if digital_twin_query:
-            logger.info("Direct digital twin path: user=%s convo=%s drug_id=%r cell_line=%r",
-                        user_id[:8], conversation_id[:8], digital_twin_query, cell_line)
+            logger.info("Direct digital twin path: user=%s convo=%s drug_id=%r cell_line=%r backbone=%r",
+                        user_id[:8], conversation_id[:8], digital_twin_query, cell_line, backbone)
             if user_id and conversation_id:
                 os.environ["CRYO_USER_ID"] = user_id
                 os.environ["CRYO_CONVERSATION_ID"] = conversation_id
-
-            # Only reload if the query implies a different backbone than the loaded one
-            inferred = digital_twin_service.model_metadata.get("configured_backbone", "")
-            from api.services.digital_twin.model_registry import infer_backbone_from_query
-            query_backbone = infer_backbone_from_query(digital_twin_query)
-            if query_backbone and query_backbone != inferred:
-                digital_twin_service.reload_model_for_query(digital_twin_query)
 
             yield {"type": "tool_start", "name": "digital_twin", "args": {
                 "action": "simulate_drug_response",
                 "drug_id": digital_twin_query,
                 "cell_line": cell_line,
+                "backbone": backbone,
             }}
 
-            # Full simulate_drug_response handles drug_lookup + CCLE + GDSC internally
+            # Full simulate_drug_response handles drug_lookup + CCLE + GDSC + pathogen targets
             simulation_output = digital_twin_service.simulate_drug_response(
                 user_id=user_id or "default_user",
                 conversation_id=conversation_id or "default_conversation",
                 drug_id=digital_twin_query,
                 cell_line=cell_line,
+                backbone=backbone,
             )
 
             if "error" in simulation_output:

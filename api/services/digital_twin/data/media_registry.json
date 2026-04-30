@@ -50,5 +50,59 @@
         {"reaction_id": "MAR09046", "label": "valine",         "lower_bound": -1.0}
       ]
     }
+    ,
+    "ecoli_m9_aerobic": {
+      "description": "M9 minimal aerobic medium for E. coli — glucose as sole carbon source under aerobic conditions. Represents standard lab culture for iJO1366. BiGG exchange reaction IDs.",
+      "organism": "ecoli",
+      "strategy": "named_exchange_medium",
+      "imports": [
+        {"reaction_id": "EX_glc__D_e",  "label": "D-glucose",     "lower_bound": -10.0},
+        {"reaction_id": "EX_o2_e",      "label": "O2",            "lower_bound": -20.0},
+        {"reaction_id": "EX_nh4_e",     "label": "NH4+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_pi_e",      "label": "phosphate",     "lower_bound": -1000.0},
+        {"reaction_id": "EX_so4_e",     "label": "sulfate",       "lower_bound": -1000.0},
+        {"reaction_id": "EX_h2o_e",     "label": "H2O",           "lower_bound": -1000.0},
+        {"reaction_id": "EX_h_e",       "label": "H+",            "lower_bound": -1000.0},
+        {"reaction_id": "EX_k_e",       "label": "K+",            "lower_bound": -1000.0},
+        {"reaction_id": "EX_na1_e",     "label": "Na+",           "lower_bound": -1000.0},
+        {"reaction_id": "EX_mg2_e",     "label": "Mg2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_fe2_e",     "label": "Fe2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_fe3_e",     "label": "Fe3+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_cl_e",      "label": "Cl-",           "lower_bound": -1000.0},
+        {"reaction_id": "EX_zn2_e",     "label": "Zn2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_ca2_e",     "label": "Ca2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_cobalt2_e", "label": "Co2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_cu2_e",     "label": "Cu2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_mn2_e",     "label": "Mn2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_mobd_e",    "label": "molybdate",     "lower_bound": -1000.0},
+        {"reaction_id": "EX_ni2_e",     "label": "Ni2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_sel_e",     "label": "selenite",      "lower_bound": -1000.0},
+        {"reaction_id": "EX_co2_e",     "label": "CO2 (bidirect)","lower_bound": -1000.0}
+      ]
+    },
+    "ecoli_m9_anaerobic": {
+      "description": "M9 minimal anaerobic medium for E. coli — glucose fermentation, no O2. Activates fermentative pathways (lactate, formate, ethanol). Relevant for metronidazole/nitroimidazole drug simulations.",
+      "organism": "ecoli",
+      "strategy": "named_exchange_medium",
+      "imports": [
+        {"reaction_id": "EX_glc__D_e",  "label": "D-glucose",     "lower_bound": -10.0},
+        {"reaction_id": "EX_nh4_e",     "label": "NH4+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_pi_e",      "label": "phosphate",     "lower_bound": -1000.0},
+        {"reaction_id": "EX_so4_e",     "label": "sulfate",       "lower_bound": -1000.0},
+        {"reaction_id": "EX_h2o_e",     "label": "H2O",           "lower_bound": -1000.0},
+        {"reaction_id": "EX_h_e",       "label": "H+",            "lower_bound": -1000.0},
+        {"reaction_id": "EX_k_e",       "label": "K+",            "lower_bound": -1000.0},
+        {"reaction_id": "EX_na1_e",     "label": "Na+",           "lower_bound": -1000.0},
+        {"reaction_id": "EX_mg2_e",     "label": "Mg2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_fe2_e",     "label": "Fe2+",          "lower_bound": -1000.0},
+        {"reaction_id": "EX_co2_e",     "label": "CO2",           "lower_bound": -1000.0}
+      ]
+    },
+    "yeast_sc_minimal": {
+      "description": "Synthetic complete (SC) minimal medium for S. cerevisiae — glucose + ammonium as primary carbon and nitrogen sources. Standard Yeast8 aerobic condition.",
+      "organism": "yeast",
+      "strategy": "minimal_medium",
+      "objective_fraction": 0.5
+    }
   }
 }

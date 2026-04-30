@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Send, Dna } from 'lucide-react'
-import SlashMenu, { type SlashCommand, CELL_LINES } from './SlashMenu'
+import SlashMenu, { type SlashCommand, type GemModel, CELL_LINES, GEM_MODELS } from './SlashMenu'
 import FileUploadButton from './FileUploadButton'
 import type { UploadRecord } from '../lib/api'
 
@@ -20,6 +20,7 @@ const DEFAULT_COMMANDS: SlashCommand[] = [
   // Simulation
   { command: '/digital_twin',description: 'Simulate metabolic drug response',   example: '/digital_twin imatinib --cell_line MCF7',     category: 'simulation' },
   { command: '/simulate',    description: 'Alias for /digital_twin',            example: '/simulate metformin --cell_line HeLa',        category: 'simulation' },
+  { command: '/gem',         description: 'Query genome-scale metabolic model', example: '/gem stats --model ijo1366',                  category: 'simulation' },
   { command: '/pathway',     description: 'Explore biological pathways',        example: '/pathway p53 signaling',                     category: 'simulation' },
   // Omics Databases
   { command: '/ppi',         description: 'Protein-protein interactions (StringDB)', example: '/ppi TP53',                             category: 'databases' },
@@ -48,10 +49,20 @@ const DEFAULT_COMMANDS: SlashCommand[] = [
 function detectCellLineMode(val: string): { active: boolean; filter: string } {
   const isDigitalTwin = val.startsWith('/digital_twin') || val.startsWith('/simulate')
   if (!isDigitalTwin) return { active: false, filter: '' }
-  const match = val.match(/--cell_line\s+(\S*)$/)
+  const match = val.match(/--cell[_\-]?line\s+(\S*)$/)
   if (match) return { active: true, filter: match[1] }
-  // also trigger when --cell_line is the last thing typed (no space yet)
-  if (/--cell_line$/.test(val.trimEnd())) return { active: true, filter: '' }
+  if (/--cell[_\-]?line$/.test(val.trimEnd())) return { active: true, filter: '' }
+  return { active: false, filter: '' }
+}
+
+// Detect if user has typed --model (with optional partial backbone after it)
+function detectModelMode(val: string): { active: boolean; filter: string } {
+  const isDigitalTwin = val.startsWith('/digital_twin') || val.startsWith('/simulate')
+    || val.startsWith('/gem')
+  if (!isDigitalTwin) return { active: false, filter: '' }
+  const match = val.match(/--(?:model|backbone)\s+(\S*)$/)
+  if (match) return { active: true, filter: match[1] }
+  if (/--(?:model|backbone)$/.test(val.trimEnd())) return { active: true, filter: '' }
   return { active: false, filter: '' }
 }
 
@@ -68,6 +79,8 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [cellLineMode, setCellLineMode] = useState(false)
   const [cellLineFilter, setCellLineFilter] = useState('')
+  const [modelMode, setModelMode] = useState(false)
+  const [modelFilter, setModelFilter] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const filteredCommands = DEFAULT_COMMANDS.filter(c =>
@@ -93,6 +106,17 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     setInput(val)
     setSelectedIndex(0)
 
+    // --model sub-menu takes priority first
+    const mMode = detectModelMode(val)
+    if (mMode.active) {
+      setModelMode(true)
+      setModelFilter(mMode.filter)
+      setCellLineMode(false)
+      setShowSlash(false)
+      return
+    }
+    setModelMode(false)
+
     // Cell line sub-menu takes priority when --cell_line detected
     const clMode = detectCellLineMode(val)
     if (clMode.active) {
@@ -113,9 +137,24 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     }
   }, [])
 
+  const filteredModels = GEM_MODELS.filter(m =>
+    m.key.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    m.label.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    m.organism.toLowerCase().includes(modelFilter.toLowerCase())
+  )
+
+  const selectModel = (model: GemModel) => {
+    const newVal = input.replace(/--(?:model|backbone)\s*\S*$/, `--model ${model.key}`)
+    setInput(newVal)
+    setModelMode(false)
+    setSelectedIndex(0)
+    textareaRef.current?.focus()
+  }
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const menuOpen = showSlash || cellLineMode
-    const listLength = cellLineMode ? filteredCellLines.length : filteredCommands.length
+    const menuOpen = showSlash || cellLineMode || modelMode
+    const listLength = modelMode ? filteredModels.length
+      : cellLineMode ? filteredCellLines.length : filteredCommands.length
 
     if (menuOpen) {
       if (e.key === 'ArrowDown') {
@@ -130,7 +169,9 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
       }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
-        if (cellLineMode && filteredCellLines[selectedIndex]) {
+        if (modelMode && filteredModels[selectedIndex]) {
+          selectModel(filteredModels[selectedIndex])
+        } else if (cellLineMode && filteredCellLines[selectedIndex]) {
           selectCellLine(filteredCellLines[selectedIndex])
         } else if (showSlash && filteredCommands[selectedIndex]) {
           selectCommand(filteredCommands[selectedIndex])
@@ -140,6 +181,7 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
       if (e.key === 'Escape') {
         setShowSlash(false)
         setCellLineMode(false)
+        setModelMode(false)
         return
       }
     }
@@ -173,6 +215,7 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     setInput('')
     setShowSlash(false)
     setCellLineMode(false)
+    setModelMode(false)
   }
 
   const handleUploaded = useCallback((record: UploadRecord) => {
@@ -184,7 +227,7 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     textareaRef.current?.focus()
   }, [])
 
-  const menuVisible = showSlash || cellLineMode
+  const menuVisible = showSlash || cellLineMode || modelMode
 
   return (
     <div className="relative">
@@ -194,9 +237,11 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
         selectedIndex={selectedIndex}
         onSelect={selectCommand}
         visible={menuVisible}
-        mode={cellLineMode ? 'cell_lines' : 'commands'}
+        mode={modelMode ? 'models' : cellLineMode ? 'cell_lines' : 'commands'}
         cellLineFilter={cellLineFilter}
         onSelectCellLine={selectCellLine}
+        modelFilter={modelFilter}
+        onSelectModel={selectModel}
       />
 
       <div className="flex items-end gap-2 p-3 rounded-xl bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border)] focus-within:border-[var(--color-cryo-accent)] transition-colors">

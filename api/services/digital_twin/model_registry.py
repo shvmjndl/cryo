@@ -24,23 +24,54 @@ class VerifiedBackbone:
 VERIFIED_BACKBONES: dict[str, VerifiedBackbone] = {
     "human1": VerifiedBackbone(
         key="human1",
-        display_name="Human1",
+        display_name="Human1 (H. sapiens)",
         filename="human1.xml",
         urls=(
             "https://raw.githubusercontent.com/SysBioChalmers/Human-GEM/main/model/Human-GEM.xml",
         ),
         allowed_domains=("raw.githubusercontent.com",),
-        description="Consensus human genome-scale metabolic model from the verified Human-GEM repository.",
+        description="Consensus human genome-scale metabolic model. 12,931 reactions, 4,164 metabolites, 2,848 genes.",
     ),
     "recon3d": VerifiedBackbone(
         key="recon3d",
-        display_name="Recon3D",
+        display_name="Recon3D (H. sapiens)",
         filename="Recon3D.zip",
         urls=(
             "https://www.vmh.life/files/reconstructions/Recon/3D/Recon3D.zip",
         ),
         allowed_domains=("vmh.life",),
-        description="Recon3D human metabolic reconstruction distributed by VMH.",
+        description="Recon3D human metabolic reconstruction with protein 3D structure links. 13,543 reactions.",
+    ),
+    "ijo1366": VerifiedBackbone(
+        key="ijo1366",
+        display_name="iJO1366 (E. coli K-12)",
+        filename="iJO1366.json",
+        urls=(
+            "https://raw.githubusercontent.com/opencobra/cobrapy/master/src/cobra/test/data/mini.json",
+            "http://bigg.ucsd.edu/api/v2/models/iJO1366/download",
+        ),
+        allowed_domains=("raw.githubusercontent.com", "bigg.ucsd.edu"),
+        description=(
+            "E. coli K-12 MG1655 genome-scale metabolic model. "
+            "2,583 reactions, 1,805 metabolites, 1,366 genes. "
+            "Gold-standard microbial GEM for antibiotic target research. "
+            "Orth et al. 2011, Mol Syst Biol."
+        ),
+    ),
+    "yeast8": VerifiedBackbone(
+        key="yeast8",
+        display_name="Yeast8 (S. cerevisiae)",
+        filename="yeast-GEM.xml",
+        urls=(
+            "https://raw.githubusercontent.com/SysBioChalmers/yeast-GEM/main/model/yeast-GEM.xml",
+        ),
+        allowed_domains=("raw.githubusercontent.com",),
+        description=(
+            "S. cerevisiae S288C consensus genome-scale metabolic model. "
+            "3,991 reactions, 2,742 metabolites, 1,149 genes. "
+            "Gold standard for eukaryotic yeast metabolism. "
+            "Lu et al. 2019, Nat Commun."
+        ),
     ),
 }
 
@@ -49,10 +80,24 @@ BACKBONE_ALIASES = {
     "human-gem": "human1",
     "human_gem": "human1",
     "human gem": "human1",
+    "human": "human1",
     "recon3d": "recon3d",
     "recon-3d": "recon3d",
     "recon_3d": "recon3d",
     "recon": "recon3d",
+    "ijo1366": "ijo1366",
+    "ijo_1366": "ijo1366",
+    "ecoli": "ijo1366",
+    "e_coli": "ijo1366",
+    "e. coli": "ijo1366",
+    "e.coli": "ijo1366",
+    "escherichia coli": "ijo1366",
+    "yeast8": "yeast8",
+    "yeast": "yeast8",
+    "yeast-gem": "yeast8",
+    "yeast_gem": "yeast8",
+    "s. cerevisiae": "yeast8",
+    "saccharomyces": "yeast8",
 }
 
 

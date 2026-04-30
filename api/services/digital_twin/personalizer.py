@@ -6,6 +6,7 @@ import cobra
 
 from api.services.digital_twin.ccle_loader import apply_gpr_expression_scaling
 from api.services.digital_twin.media_registry import apply_media_preset, select_media_preset
+from api.services.digital_twin.organism import detect_organism, is_human_model
 
 
 def personalize_model(
@@ -43,17 +44,25 @@ def personalize_model(
             "error": omics_data.get("error", ""),
         }
 
-    # Step 3: GPR expression scaling (CCLE-based) — must run BEFORE media preset
-    # so we know whether CCLE data is available for this cell line.
-    # This affects media preset selection (CCLE available → minimal media, not Warburg).
+    # Step 3: GPR expression scaling (CCLE-based) — human models only.
+    # CCLE contains human cancer cell line expression data; not applicable to E. coli / Yeast.
+    # Must run BEFORE media preset so ccle_available affects media selection.
     cell_line = simulation_context.get("cell_line", "").strip()
     ccle_available = False
-    if cell_line:
+    organism = detect_organism(personalized)
+    notes["organism"] = organism
+
+    if cell_line and is_human_model(personalized):
         personalized, gpr_notes = apply_gpr_expression_scaling(personalized, cell_line)
         notes["gpr_scaling"] = gpr_notes
         ccle_available = bool(gpr_notes.get("applied"))
         if ccle_available:
             notes["personalization_applied"] = True
+    elif cell_line and not is_human_model(personalized):
+        notes["gpr_scaling"] = {
+            "applied": False,
+            "reason": f"CCLE GPR scaling is not applicable for {organism} models (human-specific data).",
+        }
 
     # Step 1 + 2: Media preset (after GPR so ccle_available is known)
     ctx_with_ccle = {**simulation_context, "ccle_available": ccle_available}

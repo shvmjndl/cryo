@@ -13,6 +13,7 @@ class DigitalTwinSimulateRequest(BaseModel):
     conversation_id: str
     drug_id: str
     cell_line: Optional[str] = None
+    backbone: Optional[str] = None
     patient_omics_profile_path: Optional[str] = None
 
 
@@ -25,6 +26,7 @@ async def simulate_drug_response_endpoint(request: DigitalTwinSimulateRequest):
             conversation_id=request.conversation_id,
             drug_id=request.drug_id,
             cell_line=request.cell_line or "",
+            backbone=request.backbone or "",
             patient_omics_profile_path=request.patient_omics_profile_path,
         )
 
