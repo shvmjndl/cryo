@@ -39,6 +39,13 @@ async def simulate_drug_response_endpoint(request: DigitalTwinSimulateRequest):
             "plot_path": simulation_output["plot_path"],
             "summary": simulation_output["summary"],
             "citations": simulation_output.get("citations", []),
+            "backbone": simulation_output.get("backbone", ""),
+            "organism": simulation_output.get("organism", ""),
+            "organism_display": simulation_output.get("organism_display", ""),
+            "biomass_change_percent": simulation_output.get("biomass_change_percent"),
+            "drug_target_info": simulation_output.get("drug_target_info", {}),
+            "gdsc_validation": simulation_output.get("gdsc_validation", {}),
+            "personalization_notes": simulation_output.get("personalization_notes", {}),
         }
     except HTTPException:
         raise

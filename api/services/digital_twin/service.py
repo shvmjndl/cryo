@@ -120,13 +120,14 @@ class DigitalTwinService:
         personalization_notes: dict[str, Any] | None = None,
         gdsc_validation: dict[str, Any] | None = None,
         drug_target_info: dict[str, Any] | None = None,
+        model_metadata: dict[str, Any] | None = None,
     ) -> dict[str, str]:
         return generate_digital_twin_report(
             simulation_results,
             user_id,
             conversation_id,
             personalization_notes=personalization_notes,
-            model_metadata=self.model_metadata,
+            model_metadata=model_metadata if model_metadata is not None else self.model_metadata,
             gdsc_validation=gdsc_validation,
             drug_target_info=drug_target_info,
         )
@@ -148,8 +149,17 @@ class DigitalTwinService:
         # Select model — default to pool's primary model
         model, model_meta = self.get_model_for_backbone(backbone)
         organism = detect_organism(model)
-        logger.info("simulate_drug_response: drug=%s cell_line=%s backbone=%s organism=%s",
-                    drug_id, cell_line, backbone or "default", organism)
+        logger.info("simulate_drug_response: drug=%s cell_line=%s backbone=%s organism=%s source=%s",
+                    drug_id, cell_line, backbone or "default", organism, model_meta.get("source"))
+
+        if model_meta.get("source") == "demo":
+            fetch_err = model_meta.get("fetch_error", "")
+            msg = f"Backbone '{backbone}' could not be loaded"
+            if fetch_err:
+                msg += f": {fetch_err}"
+            else:
+                msg += " — model file not found and auto-fetch is disabled or failed"
+            return {"error": msg}
 
         # Drug target resolution:
         # - Human models: ChEMBL → DGIdb → SQLite cache
@@ -192,6 +202,7 @@ class DigitalTwinService:
             personalization_notes=personalization_notes,
             gdsc_validation=gdsc_validation,
             drug_target_info=drug_target_info,
+            model_metadata=model_meta,
         )
 
         return {

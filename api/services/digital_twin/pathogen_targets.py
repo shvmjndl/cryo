@@ -28,7 +28,7 @@ ECOLI_DRUG_TARGETS: dict[str, dict] = {
     "trimethoprim": {
         "gene": "folA",
         "gene_ids": ["b0048"],
-        "reactions": ["DHFR2", "DHFR"],
+        "reactions": ["DHFR"],  # iJO1366 has DHFR (not DHFR2); TMDS is downstream
         "mechanism": "Dihydrofolate reductase (DHFR) inhibitor — blocks tetrahydrofolate synthesis",
         "class": "antifolate",
         "note": "Highly selective for bacterial DHFR (10,000× lower Ki than mammalian).",
@@ -36,21 +36,21 @@ ECOLI_DRUG_TARGETS: dict[str, dict] = {
     "methotrexate": {
         "gene": "folA",
         "gene_ids": ["b0048"],
-        "reactions": ["DHFR2", "DHFR"],
+        "reactions": ["DHFR"],
         "mechanism": "Dihydrofolate reductase inhibitor (folate analogue)",
         "class": "antifolate",
     },
     "sulfamethoxazole": {
         "gene": "folP",
         "gene_ids": ["b0290"],
-        "reactions": ["DHPS", "DHPS2"],
+        "reactions": ["DHPS2"],  # iJO1366 uses DHPS2 (not DHPS)
         "mechanism": "Dihydropteroate synthase (DHPS) inhibitor — blocks folate synthesis",
         "class": "sulfonamide",
     },
     "sulfanilamide": {
         "gene": "folP",
         "gene_ids": ["b0290"],
-        "reactions": ["DHPS"],
+        "reactions": ["DHPS2"],
         "mechanism": "DHPS competitive inhibitor (PABA analogue)",
         "class": "sulfonamide",
     },
@@ -58,7 +58,7 @@ ECOLI_DRUG_TARGETS: dict[str, dict] = {
     "fosfomycin": {
         "gene": "murA",
         "gene_ids": ["b0091"],
-        "reactions": ["UDPGFPP", "MURA"],
+        "reactions": ["UAGCVT"],  # iJO1366: UDP-N-acetylglucosamine 1-carboxyvinyltransferase
         "mechanism": "MurA (UDP-N-acetylglucosamine enolpyruvyl transferase) covalent inhibitor",
         "class": "cell wall inhibitor",
         "note": "Inhibits first committed step of peptidoglycan synthesis.",
@@ -149,7 +149,7 @@ YEAST_DRUG_TARGETS: dict[str, dict] = {
     "fluconazole": {
         "gene": "ERG11",
         "gene_ids": ["YHR007C"],
-        "reactions": ["r_0689"],
+        "reactions": ["r_0317"],  # cytochrome P450 lanosterol 14α-demethylase in Yeast8
         "mechanism": "Lanosterol 14α-demethylase (Erg11/CYP51) inhibitor — blocks ergosterol synthesis",
         "class": "azole antifungal",
         "note": "Ergosterol is the primary fungal membrane sterol (analogous to cholesterol in mammals).",
@@ -157,14 +157,14 @@ YEAST_DRUG_TARGETS: dict[str, dict] = {
     "itraconazole": {
         "gene": "ERG11",
         "gene_ids": ["YHR007C"],
-        "reactions": ["r_0689"],
+        "reactions": ["r_0317"],
         "mechanism": "CYP51 (Erg11) inhibitor",
         "class": "azole antifungal",
     },
     "voriconazole": {
         "gene": "ERG11",
         "gene_ids": ["YHR007C"],
-        "reactions": ["r_0689"],
+        "reactions": ["r_0317"],
         "mechanism": "CYP51 (Erg11) inhibitor — second-generation triazole",
         "class": "azole antifungal",
     },
@@ -178,7 +178,7 @@ YEAST_DRUG_TARGETS: dict[str, dict] = {
     "terbinafine": {
         "gene": "ERG1",
         "gene_ids": ["YGR175C"],
-        "reactions": ["r_0686"],
+        "reactions": ["r_1011"],  # squalene epoxidase (NADP) in Yeast8
         "mechanism": "Squalene epoxidase (Erg1) inhibitor — squalene accumulates, ergosterol depleted",
         "class": "allylamine antifungal",
     },

@@ -3,7 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from dataclasses import dataclass
+import shutil
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -20,6 +21,7 @@ class VerifiedBackbone:
     allowed_domains: tuple[str, ...]
     description: str
     min_size_bytes: int = 500_000  # guard against stub/test files being served
+    bundled_glob: str = ""         # glob pattern to find model bundled with a Python package
 
 
 VERIFIED_BACKBONES: dict[str, VerifiedBackbone] = {
@@ -46,7 +48,8 @@ VERIFIED_BACKBONES: dict[str, VerifiedBackbone] = {
     "ijo1366": VerifiedBackbone(
         key="ijo1366",
         display_name="iJO1366 (E. coli K-12)",
-        filename="iJO1366.json",
+        filename="iJO1366.xml.gz",
+        bundled_glob="cobra/data/iJO1366.xml.gz",  # shipped with cobrapy
         urls=(
             "https://bigg.ucsd.edu/static/models/iJO1366.json",
         ),
@@ -133,6 +136,16 @@ def _sha256(filepath: Path) -> str:
     return digest.hexdigest()
 
 
+def _find_bundled_model(glob_pattern: str) -> Path | None:
+    """Locate a model file bundled with an installed Python package via site-packages glob."""
+    import site
+    for site_dir in site.getsitepackages():
+        matches = list(Path(site_dir).glob(glob_pattern))
+        if matches:
+            return matches[0]
+    return None
+
+
 def _is_allowed_url(url: str, allowed_domains: tuple[str, ...]) -> bool:
     hostname = (urlparse(url).hostname or "").lower()
     return any(hostname == domain or hostname.endswith(f".{domain}") for domain in allowed_domains)
@@ -212,14 +225,38 @@ def resolve_verified_backbone(
         metadata["retrieved_at"] = cached.get("retrieved_at", "")
         return metadata
 
-    if not auto_fetch:
-        return metadata
-
-    metadata["auto_fetch_attempted"] = True
     backbone = VERIFIED_BACKBONES[configured_backbone]
     download_dir = _models_root() / configured_backbone
     download_dir.mkdir(parents=True, exist_ok=True)
     destination = download_dir / backbone.filename
+
+    # Check if model ships bundled with a Python package (e.g. cobrapy bundles iJO1366)
+    if backbone.bundled_glob:
+        bundled = _find_bundled_model(backbone.bundled_glob)
+        if bundled:
+            shutil.copy2(bundled, destination)
+            checksum = _sha256(destination)
+            retrieved_at = datetime.now(timezone.utc).isoformat()
+            registry = _load_registry()
+            registry.setdefault("models", {})[configured_backbone] = {
+                "display_name": backbone.display_name,
+                "cached_path": str(destination),
+                "remote_url": "",
+                "checksum_sha256": checksum,
+                "retrieved_at": retrieved_at,
+                "description": backbone.description,
+            }
+            _save_registry(registry)
+            metadata["source"] = "bundled"
+            metadata["loaded_model_path"] = str(destination)
+            metadata["checksum_sha256"] = checksum
+            metadata["retrieved_at"] = retrieved_at
+            return metadata
+
+    if not auto_fetch:
+        return metadata
+
+    metadata["auto_fetch_attempted"] = True
 
     last_error: Exception | None = None
     with httpx.Client(follow_redirects=True, timeout=120) as client:

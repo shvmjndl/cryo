@@ -59,10 +59,12 @@ def _build_demo_model() -> cobra.Model:
 
 
 def _load_model_from_path(path: str) -> cobra.Model:
-    """Load SBML (.xml/.sbml), BiGG JSON (.json), or zipped SBML (.zip)."""
+    """Load SBML (.xml/.sbml/.xml.gz), BiGG JSON (.json), or zipped SBML (.zip)."""
     p = path.lower()
     if p.endswith(".json"):
         return load_json_model(path)
+    if p.endswith(".xml.gz") or p.endswith(".sbml.gz"):
+        return read_sbml_model(path)  # cobrapy handles gzip transparently
     if p.endswith(".xml") or p.endswith(".sbml"):
         return read_sbml_model(path)
     if p.endswith(".zip"):

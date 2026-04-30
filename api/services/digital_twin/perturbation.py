@@ -24,22 +24,55 @@ def _has_reaction(model: cobra.Model, reaction_id: str) -> bool:
     return model.reactions.has_id(reaction_id)
 
 
-def _inhibit_reaction(model: cobra.Model, reaction_id: str, effects: dict[str, str]) -> bool:
-    """Apply 90% inhibition to a single reaction. Returns True if applied."""
+def _inhibit_reaction(
+    model: cobra.Model,
+    reaction_id: str,
+    effects: dict[str, str],
+    baseline_flux: float | None = None,
+) -> bool:
+    """Apply 90% inhibition to a single reaction. Returns True if applied.
+
+    When baseline_flux is provided, bounds are set relative to the actual flux
+    rather than the nominal ±1000 defaults (which would have no effect on GEM reactions
+    that carry sub-unit flux under normal bounds of ±1000).
+    """
     if not _has_reaction(model, reaction_id):
         return False
     rxn = model.reactions.get_by_id(reaction_id)
 
+    if baseline_flux is not None:
+        # Flux-relative inhibition: restrict to 10% of actual baseline flux
+        flux = baseline_flux
+        if abs(flux) < 1e-9:
+            # Reaction carries no flux at baseline — still cap it near-zero to prevent activation
+            rxn.upper_bound = min(rxn.upper_bound, 1e-4)
+            rxn.lower_bound = max(rxn.lower_bound, -1e-4)
+            effects[reaction_id] = f"{rxn.name or reaction_id}: inactive at baseline, capped ≈0"
+        elif flux > 0:
+            new_ub = max(flux * _INHIBITION_FRACTION, 1e-6)
+            rxn.upper_bound = new_ub
+            effects[reaction_id] = (
+                f"{rxn.name or reaction_id}: flux {flux:.4f} → ≤{new_ub:.4f} (90% inhibition)"
+            )
+        else:
+            new_lb = min(flux * _INHIBITION_FRACTION, -1e-6)
+            rxn.lower_bound = new_lb
+            effects[reaction_id] = (
+                f"{rxn.name or reaction_id}: flux {flux:.4f} → ≥{new_lb:.4f} (90% inhibition)"
+            )
+        return True
+
+    # Fallback: nominal-bounds-based inhibition (for exchange reactions with meaningful bounds)
     applied = False
-    # Exchange reactions: restrict import (lower_bound is negative for imports)
-    if rxn.lower_bound < 0:
+    if rxn.lower_bound < -999:
+        pass  # Skip — nominal bound has no metabolic meaning
+    elif rxn.lower_bound < 0:
         original_lb = rxn.lower_bound
         rxn.lower_bound = original_lb * _INHIBITION_FRACTION
         effects[reaction_id] = f"{rxn.name or reaction_id}: {original_lb:.3f} → {rxn.lower_bound:.3f} (90% inhibition)"
         applied = True
 
-    # Forward reactions: restrict upper_bound
-    if rxn.upper_bound > 0:
+    if rxn.upper_bound > 0 and rxn.upper_bound < 999:
         original_ub = rxn.upper_bound
         rxn.upper_bound = original_ub * _INHIBITION_FRACTION
         if reaction_id not in effects:
@@ -53,6 +86,7 @@ def apply_drug_perturbation(
     model: cobra.Model,
     drug_id: str,
     drug_target_info: dict[str, Any] | None = None,
+    baseline_fluxes: dict[str, float] | None = None,
 ) -> tuple[cobra.Model, dict[str, str]]:
     """
     Apply reaction-level perturbations for drug simulations.
@@ -82,7 +116,8 @@ def apply_drug_perturbation(
 
         applied_count = 0
         for rxn_id in reaction_ids:
-            if _inhibit_reaction(perturbed, rxn_id, effects):
+            bf = baseline_fluxes.get(rxn_id) if baseline_fluxes else None
+            if _inhibit_reaction(perturbed, rxn_id, effects, baseline_flux=bf):
                 applied_count += 1
 
         if applied_count > 0:
@@ -97,7 +132,7 @@ def apply_drug_perturbation(
             )
             return perturbed, effects
 
-        logger.info("No Human1 reactions found for drug targets of %s — falling back to hardcoded patterns", drug_id)
+        logger.info("No model reactions found for drug targets of %s — falling back to pathogen DB", drug_id)
 
     # ── Path 1b: Pathogen-specific curated targets (ecoli / yeast) ───────────
     organism = detect_organism(perturbed)
@@ -108,7 +143,8 @@ def apply_drug_perturbation(
                         drug_id, organism, pathogen_info["reaction_ids"])
             applied_count = 0
             for rxn_id in pathogen_info["reaction_ids"]:
-                if _inhibit_reaction(perturbed, rxn_id, effects):
+                bf = baseline_fluxes.get(rxn_id) if baseline_fluxes else None
+                if _inhibit_reaction(perturbed, rxn_id, effects, baseline_flux=bf):
                     applied_count += 1
             if applied_count > 0:
                 gene_str = pathogen_info["targets"][0]["gene_symbol"] if pathogen_info.get("targets") else "?"

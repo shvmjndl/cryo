@@ -16,10 +16,14 @@ def _extract_fluxes(model: cobra.Model, solution: Any) -> dict[str, float]:
 
 def _objective_reaction_id(model: cobra.Model) -> str:
     expression = str(model.objective.expression)
+    best = ""
     for reaction in model.reactions:
-        if reaction.id in expression:
-            return reaction.id
-    return ""
+        rid = reaction.id
+        if rid in expression:
+            # Prefer longer match to avoid prefix collisions (e.g. BIOMASS vs BIOMASS_reverse_xxx)
+            if len(rid) > len(best):
+                best = rid
+    return best
 
 
 def _biomass_flux(model: cobra.Model, solution: Any, fluxes: dict[str, float]) -> tuple[float, str]:
@@ -41,7 +45,11 @@ def simulate_drug_effect(
     except Exception as exc:
         return {"error": f"Initial model optimization failed: {exc}"}
 
-    perturbed_model, drug_effects = apply_drug_perturbation(model, drug_id, drug_target_info=drug_target_info)
+    perturbed_model, drug_effects = apply_drug_perturbation(
+        model, drug_id,
+        drug_target_info=drug_target_info,
+        baseline_fluxes=baseline_fluxes,
+    )
 
     try:
         perturbed_solution = perturbed_model.optimize()
@@ -57,10 +65,16 @@ def simulate_drug_effect(
         if abs(perturbed_fluxes[reaction_id] - baseline_fluxes.get(reaction_id, 0.0)) > 1e-6
     }
 
+    if initial_biomass_flux and abs(initial_biomass_flux) > 1e-9:
+        biomass_change_percent = (drug_biomass_flux - initial_biomass_flux) / abs(initial_biomass_flux) * 100.0
+    else:
+        biomass_change_percent = 0.0
+
     return {
         "drug_id": drug_id,
         "initial_biomass_flux": initial_biomass_flux,
         "drug_biomass_flux": drug_biomass_flux,
+        "biomass_change_percent": round(biomass_change_percent, 4),
         "biomass_reaction_id": biomass_reaction_id,
         "drug_effects_applied": drug_effects,
         "changed_fluxes": changed_fluxes,
