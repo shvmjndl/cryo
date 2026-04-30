@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react'
 import { Send, Dna, Minimize2, Maximize2, X, User, Microscope } from 'lucide-react'
-import { chat } from '../lib/api'
+import { chat, type UploadRecord } from '../lib/api'
 import ChatMessage from './ChatMessage'
 import { CELL_LINES } from './SlashMenu'
+import FileUploadButton from './FileUploadButton'
 
 function extractFileLinks(content: string) {
   const links: { url: string; filename: string }[] = []
@@ -16,20 +17,33 @@ function extractFileLinks(content: string) {
 }
 
 const SLASH_COMMANDS = [
-  { command: '/pubmed', description: 'Search PubMed' },
-  { command: '/protein', description: 'Protein/gene info' },
-  { command: '/drug', description: 'Drug/compound info' },
-  { command: '/variant', description: 'Variant significance' },
-  { command: '/vep', description: 'Variant effect prediction' },
-  { command: '/targets', description: 'Disease-target associations' },
-  { command: '/structure', description: 'Protein 3D structures' },
-  { command: '/digital_twin', description: 'Simulate metabolic drug response — e.g. /digital_twin imatinib --cell_line MCF7' },
-  { command: '/simulate', description: 'Alias for /digital_twin' },
-  { command: '/report', description: 'Generate research report' },
-  { command: '/chart', description: 'Generate visualization' },
-  { command: '/export', description: 'Export to Excel' },
-  { command: '/compare', description: 'Compare genes/drugs' },
-  { command: '/repurpose', description: 'Drug repurposing' },
+  { command: '/pubmed',      description: 'Search PubMed' },
+  { command: '/protein',     description: 'Protein/gene info' },
+  { command: '/drug',        description: 'Drug/compound info' },
+  { command: '/variant',     description: 'Variant significance' },
+  { command: '/vep',         description: 'Variant effect prediction' },
+  { command: '/targets',     description: 'Disease-target associations' },
+  { command: '/structure',   description: 'Protein 3D structures' },
+  { command: '/digital_twin',description: 'Metabolic drug simulation —cell_line MCF7' },
+  { command: '/simulate',    description: 'Alias for /digital_twin' },
+  { command: '/ppi',         description: 'Protein-protein interactions' },
+  { command: '/kegg',        description: 'KEGG pathway search' },
+  { command: '/reactome',    description: 'Reactome enrichment' },
+  { command: '/deseq',       description: 'Differential expression (PyDESeq2)' },
+  { command: '/scrna',       description: 'scRNA-seq analysis (Scanpy)' },
+  { command: '/annotate',    description: 'Cell type annotation (CellTypist)' },
+  { command: '/atac',        description: 'ATAC-seq peak calling' },
+  { command: '/chip',        description: 'ChIP-seq peak calling' },
+  { command: '/meta',        description: 'Metagenomics pipeline' },
+  { command: '/ms',          description: 'Mass-spec proteomics' },
+  { command: '/sec',         description: 'SEC chromatography' },
+  { command: '/novelty',     description: 'Research novelty check' },
+  { command: '/paper',       description: 'Manuscript pipeline' },
+  { command: '/report',      description: 'Generate research report' },
+  { command: '/chart',       description: 'Generate visualization' },
+  { command: '/export',      description: 'Export to Excel' },
+  { command: '/compare',     description: 'Compare genes/drugs' },
+  { command: '/repurpose',   description: 'Drug repurposing' },
 ]
 
 function detectCellLineMode(val: string): { active: boolean; filter: string } {
@@ -280,11 +294,20 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-          placeholder='Type "/" for commands...'
+          placeholder='Type "/" for commands or attach file...'
           disabled={streaming}
           rows={1}
           className="node-textarea"
           style={{ userSelect: 'text' }}
+        />
+        <FileUploadButton
+          compact
+          conversationId={conversationId || undefined}
+          onUploaded={(record: UploadRecord) => {
+            const cmd = record.suggested_command || ''
+            const insertion = cmd ? `${cmd} ${record.server_path} ` : `${record.server_path} `
+            setInput(prev => prev ? `${prev.trimEnd()} ${insertion}` : insertion)
+          }}
         />
         <button onClick={() => handleSend()} disabled={!input.trim() || streaming} className="node-send-btn">
           <Send className="w-3 h-3" />

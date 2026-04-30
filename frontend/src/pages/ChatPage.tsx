@@ -268,7 +268,7 @@ export default function ChatPage({ user, onLogout }: Props) {
 
         {/* Input */}
         <div className="p-4 border-t border-[var(--color-cryo-border)] flex-shrink-0">
-          <ChatInput onSend={handleSend} disabled={streaming} />
+          <ChatInput onSend={handleSend} disabled={streaming} conversationId={activeConvoId || undefined} />
         </div>
       </div>
 

@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Send, Dna } from 'lucide-react'
 import SlashMenu, { type SlashCommand, CELL_LINES } from './SlashMenu'
+import FileUploadButton from './FileUploadButton'
+import type { UploadRecord } from '../lib/api'
 
 const DEFAULT_COMMANDS: SlashCommand[] = [
   // Literature
@@ -56,9 +58,10 @@ function detectCellLineMode(val: string): { active: boolean; filter: string } {
 interface Props {
   onSend: (message: string) => void
   disabled?: boolean
+  conversationId?: string
 }
 
-export default function ChatInput({ onSend, disabled }: Props) {
+export default function ChatInput({ onSend, disabled, conversationId }: Props) {
   const [input, setInput] = useState('')
   const [showSlash, setShowSlash] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
@@ -172,6 +175,15 @@ export default function ChatInput({ onSend, disabled }: Props) {
     setCellLineMode(false)
   }
 
+  const handleUploaded = useCallback((record: UploadRecord) => {
+    const cmd = record.suggested_command || ''
+    const insertion = cmd
+      ? `${cmd} ${record.server_path} `
+      : `${record.server_path} `
+    setInput(prev => prev ? `${prev.trimEnd()} ${insertion}` : insertion)
+    textareaRef.current?.focus()
+  }, [])
+
   const menuVisible = showSlash || cellLineMode
 
   return (
@@ -199,13 +211,19 @@ export default function ChatInput({ onSend, disabled }: Props) {
           rows={1}
           className="flex-1 bg-transparent text-[var(--color-cryo-text)] placeholder:text-[var(--color-cryo-text-muted)] resize-none focus:outline-none text-sm leading-relaxed"
         />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || disabled}
-          className="p-2 rounded-lg bg-[var(--color-cryo-accent)] text-[var(--color-cryo-bg)] hover:brightness-110 transition-all disabled:opacity-30 disabled:hover:brightness-100 flex-shrink-0"
-        >
-          <Send className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1 mb-0.5 flex-shrink-0">
+          <FileUploadButton
+            onUploaded={handleUploaded}
+            conversationId={conversationId}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || disabled}
+            className="p-2 rounded-lg bg-[var(--color-cryo-accent)] text-[var(--color-cryo-bg)] hover:brightness-110 transition-all disabled:opacity-30 disabled:hover:brightness-100"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mt-2 px-1">

@@ -55,6 +55,46 @@ export const chat = {
   },
 }
 
+// Uploads
+export interface UploadRecord {
+  id: string
+  original_filename: string
+  server_path: string
+  file_size: number
+  mime_type: string | null
+  file_ext: string | null
+  data_type: string | null
+  suggested_command: string | null
+  times_used: number
+  created_at: string
+}
+
+export const uploads = {
+  list: (): Promise<UploadRecord[]> => request('/uploads'),
+
+  upload: (file: File, conversationId?: string, onProgress?: (pct: number) => void): Promise<UploadRecord> => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const url = conversationId
+        ? `${API_BASE}/uploads?conversation_id=${conversationId}`
+        : `${API_BASE}/uploads`
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', url)
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress?.(Math.round(e.loaded / e.total * 100)) }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText))
+        else reject(new Error(JSON.parse(xhr.responseText)?.detail || `HTTP ${xhr.status}`))
+      }
+      xhr.onerror = () => reject(new Error('Upload failed'))
+      xhr.send(formData)
+    })
+  },
+
+  remove: (id: string) => request(`/uploads/${id}`, { method: 'DELETE' }),
+}
+
 // Workspace
 export const workspace = {
   list: () => request('/workspace/list'),
