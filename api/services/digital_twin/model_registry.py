@@ -19,6 +19,7 @@ class VerifiedBackbone:
     urls: tuple[str, ...]
     allowed_domains: tuple[str, ...]
     description: str
+    min_size_bytes: int = 500_000  # guard against stub/test files being served
 
 
 VERIFIED_BACKBONES: dict[str, VerifiedBackbone] = {
@@ -47,10 +48,9 @@ VERIFIED_BACKBONES: dict[str, VerifiedBackbone] = {
         display_name="iJO1366 (E. coli K-12)",
         filename="iJO1366.json",
         urls=(
-            "https://raw.githubusercontent.com/opencobra/cobrapy/master/src/cobra/test/data/mini.json",
-            "http://bigg.ucsd.edu/api/v2/models/iJO1366/download",
+            "https://bigg.ucsd.edu/static/models/iJO1366.json",
         ),
-        allowed_domains=("raw.githubusercontent.com", "bigg.ucsd.edu"),
+        allowed_domains=("bigg.ucsd.edu",),
         description=(
             "E. coli K-12 MG1655 genome-scale metabolic model. "
             "2,583 reactions, 1,805 metabolites, 1,366 genes. "
@@ -221,16 +221,29 @@ def resolve_verified_backbone(
     download_dir.mkdir(parents=True, exist_ok=True)
     destination = download_dir / backbone.filename
 
-    with httpx.Client(follow_redirects=True, timeout=60) as client:
+    last_error: Exception | None = None
+    with httpx.Client(follow_redirects=True, timeout=120) as client:
         for url in backbone.urls:
             if not _is_allowed_url(url, backbone.allowed_domains):
                 continue
-            response = client.get(url)
-            response.raise_for_status()
+            try:
+                response = client.get(url)
+                response.raise_for_status()
+            except Exception as exc:
+                last_error = exc
+                continue
 
             final_url = str(response.url)
             if not _is_allowed_url(final_url, backbone.allowed_domains):
-                raise ValueError(f"Resolved URL is outside allowlist: {final_url}")
+                last_error = ValueError(f"Resolved URL is outside allowlist: {final_url}")
+                continue
+
+            if len(response.content) < backbone.min_size_bytes:
+                last_error = ValueError(
+                    f"Downloaded file is too small ({len(response.content)} bytes) — "
+                    f"expected at least {backbone.min_size_bytes} bytes for {backbone.key}"
+                )
+                continue
 
             destination.write_bytes(response.content)
             checksum = _sha256(destination)
@@ -254,4 +267,6 @@ def resolve_verified_backbone(
             metadata["retrieved_at"] = retrieved_at
             return metadata
 
+    if last_error:
+        metadata["fetch_error"] = str(last_error)
     return metadata

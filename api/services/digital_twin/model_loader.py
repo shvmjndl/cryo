@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import zipfile
+import tempfile
+from pathlib import Path
 
 import cobra
 from cobra.io import read_sbml_model, load_json_model
@@ -56,14 +59,33 @@ def _build_demo_model() -> cobra.Model:
 
 
 def _load_model_from_path(path: str) -> cobra.Model:
-    """Load SBML (.xml) or BiGG JSON (.json) model. Raises on unknown extension."""
+    """Load SBML (.xml/.sbml), BiGG JSON (.json), or zipped SBML (.zip)."""
     p = path.lower()
     if p.endswith(".json"):
         return load_json_model(path)
     if p.endswith(".xml") or p.endswith(".sbml"):
         return read_sbml_model(path)
-    # Try SBML as default
+    if p.endswith(".zip"):
+        return _load_zipped_model(path)
     return read_sbml_model(path)
+
+
+def _load_zipped_model(zip_path: str) -> cobra.Model:
+    """Extract the first .xml/.sbml/.json from a zip and load it."""
+    with zipfile.ZipFile(zip_path) as zf:
+        candidates = [
+            n for n in zf.namelist()
+            if n.lower().endswith((".xml", ".sbml", ".json"))
+            and not n.startswith("__MACOSX")
+        ]
+        if not candidates:
+            raise ValueError(f"No model file found inside {zip_path}")
+        # Prefer root-level files over nested ones
+        candidates.sort(key=lambda n: n.count("/"))
+        target = candidates[0]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            extracted = zf.extract(target, path=tmpdir)
+            return _load_model_from_path(extracted)
 
 
 def load_backbone_model(backbone_name: str | None = None) -> tuple[cobra.Model, dict]:
