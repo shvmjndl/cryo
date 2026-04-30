@@ -3,22 +3,43 @@ import { Send, Dna } from 'lucide-react'
 import SlashMenu, { type SlashCommand, CELL_LINES } from './SlashMenu'
 
 const DEFAULT_COMMANDS: SlashCommand[] = [
-  { command: '/pubmed', description: 'Search PubMed literature', example: '/pubmed CRISPR glioblastoma' },
-  { command: '/biorxiv', description: 'Search bioRxiv preprints', example: '/biorxiv single-cell RNA-seq' },
-  { command: '/protein', description: 'Look up protein/gene info', example: '/protein TP53' },
-  { command: '/structure', description: 'Find protein 3D structures', example: '/structure EGFR' },
-  { command: '/drug', description: 'Search drugs and compounds', example: '/drug temozolomide' },
-  { command: '/targets', description: 'Disease-target associations', example: '/targets glioblastoma' },
-  { command: '/variant', description: 'Variant clinical significance', example: '/variant rs28934578' },
-  { command: '/vep', description: 'Variant effect prediction', example: '/vep 17:7675088:C:T' },
-  { command: '/repurpose', description: 'Drug repurposing candidates', example: '/repurpose Huntington disease' },
-  { command: '/digital_twin', description: 'Simulate metabolic drug response', example: '/digital_twin imatinib --cell_line MCF7' },
-  { command: '/simulate', description: 'Alias for /digital_twin', example: '/simulate metformin --cell_line HeLa' },
-  { command: '/pathway', description: 'Explore biological pathways', example: '/pathway p53 signaling' },
-  { command: '/compare', description: 'Compare genes/proteins/drugs', example: '/compare BRCA1 BRCA2' },
-  { command: '/export', description: 'Export data to Excel', example: '/export TP53 variants' },
-  { command: '/report', description: 'Generate interactive HTML report', example: '/report glioblastoma drug targets' },
-  { command: '/chart', description: 'Generate visualization', example: '/chart cancer mutation frequency' },
+  // Literature
+  { command: '/pubmed',      description: 'Search PubMed literature',           example: '/pubmed CRISPR glioblastoma',               category: 'literature' },
+  { command: '/biorxiv',     description: 'Search bioRxiv preprints',            example: '/biorxiv single-cell RNA-seq',               category: 'literature' },
+  // Protein & Structure
+  { command: '/protein',     description: 'Look up protein/gene info',           example: '/protein TP53',                              category: 'protein' },
+  { command: '/structure',   description: 'Find protein 3D structures',          example: '/structure EGFR',                            category: 'protein' },
+  // Drug & Variant
+  { command: '/drug',        description: 'Search drugs and compounds',          example: '/drug temozolomide',                         category: 'drug' },
+  { command: '/targets',     description: 'Disease-target associations',         example: '/targets glioblastoma',                      category: 'drug' },
+  { command: '/variant',     description: 'Variant clinical significance',       example: '/variant rs28934578',                        category: 'drug' },
+  { command: '/vep',         description: 'Variant effect prediction',           example: '/vep 17:7675088:C:T',                        category: 'drug' },
+  { command: '/repurpose',   description: 'Drug repurposing candidates',         example: '/repurpose Huntington disease',               category: 'drug' },
+  // Simulation
+  { command: '/digital_twin',description: 'Simulate metabolic drug response',   example: '/digital_twin imatinib --cell_line MCF7',     category: 'simulation' },
+  { command: '/simulate',    description: 'Alias for /digital_twin',            example: '/simulate metformin --cell_line HeLa',        category: 'simulation' },
+  { command: '/pathway',     description: 'Explore biological pathways',        example: '/pathway p53 signaling',                     category: 'simulation' },
+  // Omics Databases
+  { command: '/ppi',         description: 'Protein-protein interactions (StringDB)', example: '/ppi TP53',                             category: 'databases' },
+  { command: '/kegg',        description: 'KEGG pathway search',                example: '/kegg cell cycle',                           category: 'databases' },
+  { command: '/reactome',    description: 'Reactome pathway enrichment',        example: '/reactome BRCA1,BRCA2,ATM',                  category: 'databases' },
+  // Analysis Pipelines
+  { command: '/deseq',       description: 'Differential expression (PyDESeq2)', example: '/deseq counts.csv vs control',               category: 'analysis' },
+  { command: '/scrna',       description: 'scRNA-seq clustering (Scanpy)',       example: '/scrna data.h5ad',                           category: 'analysis' },
+  { command: '/annotate',    description: 'Cell type annotation (CellTypist)',   example: '/annotate scrna_processed.h5ad',             category: 'analysis' },
+  { command: '/atac',        description: 'ATAC-seq peak calling (MACS3)',       example: '/atac sample.bam',                           category: 'analysis' },
+  { command: '/chip',        description: 'ChIP-seq peak calling (MACS3)',       example: '/chip chip.bam vs input.bam',                category: 'analysis' },
+  { command: '/meta',        description: 'Metagenomics (Kraken2 + HUMAnN3)',    example: '/meta sample_R1.fastq.gz',                   category: 'analysis' },
+  { command: '/ms',          description: 'Mass spectrometry proteomics',        example: '/ms proteinGroups.txt',                      category: 'analysis' },
+  { command: '/sec',         description: 'SEC chromatography analysis',         example: '/sec sec_data.csv',                          category: 'analysis' },
+  // Research Workflow
+  { command: '/novelty',     description: 'Research novelty / saturation check', example: '/novelty CRISPR base editing sickle cell',  category: 'research' },
+  { command: '/paper',       description: 'Full manuscript planning pipeline',   example: '/paper spatial transcriptomics TNBC',        category: 'research' },
+  // Output
+  { command: '/compare',     description: 'Compare genes/proteins/drugs',        example: '/compare BRCA1 BRCA2',                       category: 'output' },
+  { command: '/export',      description: 'Export data to Excel',                example: '/export TP53 variants',                      category: 'output' },
+  { command: '/report',      description: 'Generate interactive HTML report',    example: '/report glioblastoma drug targets',           category: 'output' },
+  { command: '/chart',       description: 'Generate visualization',              example: '/chart cancer mutation frequency',            category: 'output' },
 ]
 
 // Detect if user has typed --cell_line (with optional partial name after it)

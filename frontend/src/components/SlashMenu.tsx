@@ -1,13 +1,26 @@
 import { useEffect, useRef } from 'react'
 import {
   BookOpen, Dna, Pill, FileSearch, FlaskConical, GitBranch, Download, Scale,
-  FileText, BarChart3, Microscope
+  FileText, BarChart3, Microscope, Network, Map, Waypoints, TrendingUp,
+  ScanLine, Tag, Layers, ChevronRight, Beaker, LineChart, Lightbulb, ScrollText
 } from 'lucide-react'
 
 export interface SlashCommand {
   command: string
   description: string
   example: string
+  category?: string
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  'literature':  'Literature',
+  'protein':     'Protein & Structure',
+  'drug':        'Drug & Variant',
+  'simulation':  'Simulation',
+  'databases':   'Omics Databases',
+  'analysis':    'Analysis Pipelines',
+  'research':    'Research Workflow',
+  'output':      'Reports & Output',
 }
 
 export const CELL_LINES: string[] = [
@@ -53,6 +66,19 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   '/export': <Download className="w-4 h-4" />,
   '/report': <FileText className="w-4 h-4" />,
   '/chart': <BarChart3 className="w-4 h-4" />,
+  '/ppi': <Network className="w-4 h-4" />,
+  '/kegg': <Map className="w-4 h-4" />,
+  '/reactome': <Waypoints className="w-4 h-4" />,
+  '/deseq': <TrendingUp className="w-4 h-4" />,
+  '/scrna': <ScanLine className="w-4 h-4" />,
+  '/annotate': <Tag className="w-4 h-4" />,
+  '/atac': <Layers className="w-4 h-4" />,
+  '/chip': <ChevronRight className="w-4 h-4" />,
+  '/meta': <Microscope className="w-4 h-4" />,
+  '/ms': <Beaker className="w-4 h-4" />,
+  '/sec': <LineChart className="w-4 h-4" />,
+  '/novelty': <Lightbulb className="w-4 h-4" />,
+  '/paper': <ScrollText className="w-4 h-4" />,
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -72,6 +98,22 @@ const CATEGORY_COLORS: Record<string, string> = {
   '/export': 'text-[var(--color-cryo-text-dim)]',
   '/report': 'text-[var(--color-cryo-red)]',
   '/chart': 'text-[var(--color-cryo-amber)]',
+  // Omics databases — teal
+  '/ppi': 'text-[var(--color-cryo-cyan)]',
+  '/kegg': 'text-[var(--color-cryo-cyan)]',
+  '/reactome': 'text-[var(--color-cryo-cyan)]',
+  // Analysis pipelines — emerald
+  '/deseq': 'text-[var(--color-cryo-emerald)]',
+  '/scrna': 'text-[var(--color-cryo-emerald)]',
+  '/annotate': 'text-[var(--color-cryo-emerald)]',
+  '/atac': 'text-[var(--color-cryo-emerald)]',
+  '/chip': 'text-[var(--color-cryo-emerald)]',
+  '/meta': 'text-[var(--color-cryo-emerald)]',
+  '/ms': 'text-[var(--color-cryo-purple)]',
+  '/sec': 'text-[var(--color-cryo-purple)]',
+  // Research workflow — amber
+  '/novelty': 'text-[var(--color-cryo-amber)]',
+  '/paper': 'text-[var(--color-cryo-amber)]',
 }
 
 interface Props {
@@ -151,39 +193,60 @@ export default function SlashMenu({
     )
   }
 
+  // Group filtered commands by category
+  const grouped: { category: string; items: typeof filteredCommands }[] = []
+  let lastCat = ''
+  for (const cmd of filteredCommands) {
+    const cat = cmd.category || 'output'
+    if (cat !== lastCat) { grouped.push({ category: cat, items: [] }); lastCat = cat }
+    grouped[grouped.length - 1].items.push(cmd)
+  }
+
   return (
     <div
       ref={menuRef}
-      className="slash-menu absolute bottom-full left-0 right-0 mb-2 rounded-xl bg-[var(--color-cryo-surface-2)] max-h-72 overflow-y-auto z-50"
+      className="slash-menu absolute bottom-full left-0 right-0 mb-2 rounded-xl bg-[var(--color-cryo-surface-2)] max-h-80 overflow-y-auto z-50"
     >
-      <div className="px-3 py-2 text-xs text-[var(--color-cryo-text-muted)] font-mono uppercase tracking-wider border-b border-[var(--color-cryo-border)]">
-        Biology Tools
+      <div className="px-3 py-2 text-xs text-[var(--color-cryo-text-muted)] font-mono uppercase tracking-wider border-b border-[var(--color-cryo-border)] sticky top-0 bg-[var(--color-cryo-surface-2)]">
+        Biology Tools <span className="opacity-50">({filteredCommands.length})</span>
       </div>
-      {filteredCommands.map((cmd, i) => (
-        <div
-          key={cmd.command}
-          ref={el => { itemRefs.current[i] = el }}
-          onClick={() => onSelect(cmd)}
-          className={`
-            flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors
-            ${i === selectedIndex ? 'bg-[var(--color-cryo-surface-3)]' : 'hover:bg-[var(--color-cryo-surface-3)]'}
-          `}
-        >
-          <span className={CATEGORY_COLORS[cmd.command] || 'text-[var(--color-cryo-text-dim)]'}>
-            {ICON_MAP[cmd.command] || <FlaskConical className="w-4 h-4" />}
-          </span>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm text-[var(--color-cryo-accent)]">{cmd.command}</span>
-              <span className="text-xs text-[var(--color-cryo-text-dim)] truncate">{cmd.description}</span>
+      {grouped.map(({ category, items }) => (
+        <div key={category}>
+          {filteredCommands.length > 6 && (
+            <div className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-cryo-text-muted)] opacity-60">
+              {CATEGORY_LABELS[category] || category}
             </div>
-            <div className="text-xs text-[var(--color-cryo-text-muted)] font-mono mt-0.5 truncate">
-              {cmd.example}
-            </div>
-          </div>
-          {i === selectedIndex && (
-            <span className="text-xs text-[var(--color-cryo-text-muted)] font-mono">enter</span>
           )}
+          {items.map((cmd) => {
+            const i = filteredCommands.indexOf(cmd)
+            return (
+              <div
+                key={cmd.command}
+                ref={el => { itemRefs.current[i] = el }}
+                onClick={() => onSelect(cmd)}
+                className={`
+                  flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors
+                  ${i === selectedIndex ? 'bg-[var(--color-cryo-surface-3)]' : 'hover:bg-[var(--color-cryo-surface-3)]'}
+                `}
+              >
+                <span className={CATEGORY_COLORS[cmd.command] || 'text-[var(--color-cryo-text-dim)]'}>
+                  {ICON_MAP[cmd.command] || <FlaskConical className="w-4 h-4" />}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm text-[var(--color-cryo-accent)]">{cmd.command}</span>
+                    <span className="text-xs text-[var(--color-cryo-text-dim)] truncate">{cmd.description}</span>
+                  </div>
+                  <div className="text-xs text-[var(--color-cryo-text-muted)] font-mono mt-0.5 truncate">
+                    {cmd.example}
+                  </div>
+                </div>
+                {i === selectedIndex && (
+                  <span className="text-xs text-[var(--color-cryo-text-muted)] font-mono">enter</span>
+                )}
+              </div>
+            )
+          })}
         </div>
       ))}
     </div>

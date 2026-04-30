@@ -57,6 +57,75 @@ SLASH_TRANSLATORS = {
         "You MUST call compile_report as the final tool."
     ),
     "/chart": "Create a visualization about: {query}. Gather data, then call generate_chart.",
+    # ── Omics database tools ──
+    "/ppi": (
+        "Find protein-protein interaction network for: {query}. "
+        "Use the stringdb_ppi tool with the gene(s) from the query. "
+        "Report top interaction partners, confidence scores, enriched pathways, and include the network image URL."
+    ),
+    "/kegg": (
+        "Search KEGG biological pathways for: {query}. "
+        "Use kegg_pathway tool with action='search'. For top results, call kegg_pathway again with action='details' to get full pathway info."
+    ),
+    "/reactome": (
+        "Query Reactome pathways for: {query}. "
+        "If query looks like a gene list (comma-separated), use reactome tool with action='enrich' to run enrichment analysis. "
+        "Otherwise use action='search' to find relevant pathways."
+    ),
+    # ── Analysis pipelines (return code templates + instructions) ──
+    "/deseq": (
+        "Set up differential expression analysis for: {query}. "
+        "Use the differential_expression tool to get the analysis code template and instructions. "
+        "Ask the user for their count matrix and metadata file paths if not provided. "
+        "Explain the expected input format and output files clearly."
+    ),
+    "/scrna": (
+        "Set up single-cell RNA-seq analysis for: {query}. "
+        "Use the scrna_analysis tool to get the Scanpy pipeline code template. "
+        "Ask for the .h5ad or 10x data path. Explain QC parameters and what outputs to expect."
+    ),
+    "/annotate": (
+        "Annotate cell types in single-cell RNA-seq data: {query}. "
+        "Use the cell_annotation tool. If no model specified, default to Immune_All_High.pkl. "
+        "List available CellTypist models and their use cases."
+    ),
+    "/atac": (
+        "Set up ATAC-seq peak calling analysis for: {query}. "
+        "Use the atac_seq tool to get the MACS3 pipeline code. "
+        "Explain Tn5-aware settings, FRiP QC threshold (>0.2), and expected outputs."
+    ),
+    "/chip": (
+        "Set up ChIP-seq peak calling for: {query}. "
+        "Use the chip_seq tool. Ask whether this is narrow peaks (TF/H3K4me3/H3K27ac) or broad peaks (H3K27me3/H3K36me3). "
+        "Explain FRiP thresholds and the need for an input/IgG control."
+    ),
+    "/meta": (
+        "Set up shotgun metagenomics analysis for: {query}. "
+        "Use the metagenomics tool to get the Kraken2+HUMAnN3 pipeline. "
+        "Explain database requirements (Kraken2 DB, HUMAnN3 DB) and QC expectations."
+    ),
+    "/ms": (
+        "Set up mass spectrometry proteomics analysis for: {query}. "
+        "Use the proteomics_ms tool. Ask for the proteinGroups.txt or equivalent file path. "
+        "Explain MaxQuant/DIA-NN/FragPipe input formats and QC thresholds."
+    ),
+    "/sec": (
+        "Analyze size-exclusion chromatography data: {query}. "
+        "Use the sec_report tool. Ask for the CSV data file path. "
+        "Explain oligomeric state classification and quality scoring."
+    ),
+    # ── Research workflow tools ──
+    "/novelty": (
+        "Check research novelty for this idea: {query}. "
+        "Use the novelty_check tool with the idea from the query. "
+        "Report novelty score, saturation level, least-crowded query variants, and concrete differentiation recommendations."
+    ),
+    "/paper": (
+        "Plan a research manuscript for: {query}. "
+        "Use the manuscript_pipeline tool. Ask for target journal and computational/biological/clinical focus. "
+        "Walk through each stage: novelty → datasets → metrics → analysis → figures → draft. "
+        "Use other CRYO tools (pubmed_search, scrna_analysis, etc.) to populate each section with real data."
+    ),
 }
 
 SLASH_COMMANDS = [
@@ -76,6 +145,22 @@ SLASH_COMMANDS = [
     {"command": "/export", "description": "Export data to Excel", "example": "/export TP53 variants"},
     {"command": "/report", "description": "Generate research report", "example": "/report glioblastoma drug targets"},
     {"command": "/chart", "description": "Generate visualization", "example": "/chart cancer mutation frequency"},
+    # ── Omics databases ──
+    {"command": "/ppi", "description": "Protein-protein interaction network (StringDB)", "example": "/ppi TP53"},
+    {"command": "/kegg", "description": "KEGG pathway search and details", "example": "/kegg cell cycle"},
+    {"command": "/reactome", "description": "Reactome pathway enrichment", "example": "/reactome BRCA1,BRCA2,ATM"},
+    # ── Analysis pipelines ──
+    {"command": "/deseq", "description": "Differential expression analysis (PyDESeq2)", "example": "/deseq counts.csv vs control"},
+    {"command": "/scrna", "description": "scRNA-seq preprocessing and clustering (Scanpy)", "example": "/scrna data.h5ad"},
+    {"command": "/annotate", "description": "Cell type annotation (CellTypist)", "example": "/annotate scrna_processed.h5ad"},
+    {"command": "/atac", "description": "ATAC-seq peak calling (MACS3)", "example": "/atac sample.bam"},
+    {"command": "/chip", "description": "ChIP-seq peak calling (MACS3)", "example": "/chip chip.bam vs input.bam"},
+    {"command": "/meta", "description": "Metagenomics pipeline (Kraken2 + HUMAnN3)", "example": "/meta sample_R1.fastq.gz"},
+    {"command": "/ms", "description": "Mass spectrometry proteomics (MaxQuant/DIA-NN)", "example": "/ms proteinGroups.txt"},
+    {"command": "/sec", "description": "SEC chromatography peak analysis", "example": "/sec sec_data.csv"},
+    # ── Research workflow ──
+    {"command": "/novelty", "description": "Research novelty / saturation check", "example": "/novelty CRISPR base editing sickle cell"},
+    {"command": "/paper", "description": "Full manuscript planning pipeline", "example": "/paper spatial transcriptomics TNBC"},
 ]
 
 # Report format instructions injected for /report queries
