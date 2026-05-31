@@ -1,4 +1,4 @@
-# CRYO — Comprehensive Research Yielding Outcomes
+# CRYO
 (whoever stumbles on this repo, pls note im still working on it as a single person team, if some features donot work pls raise an issue or PR :))
 
 **AI-powered biology research platform** designed for autonomous scientific discovery. Synthesize literature, analyze proteins, repurpose drugs, interpret genomic variants, run omics pipelines, simulate metabolic drug responses, and generate publication-ready interactive reports — branch and explore research hypotheses like a visual flowchart.
