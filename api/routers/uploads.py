@@ -29,6 +29,9 @@ ALLOWED_EXTENSIONS = {
     ".parquet", ".feather",
     ".json", ".yaml", ".yml",
     ".fa", ".fasta", ".fna",
+    # Documents — PDF + all image formats (routed to VLM collections)
+    ".pdf",
+    ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp", ".gif",
 }
 
 # Map extension → data type + suggested command
@@ -39,6 +42,16 @@ EXT_HINTS: dict[str, tuple[str, str]] = {
     ".fastq.gz":("fastq",           "/meta"),
     ".fq":      ("fastq",           "/meta"),
     ".fq.gz":   ("fastq",           "/meta"),
+    # Documents — hint to collections command
+    ".pdf":     ("document",        "/collections"),
+    ".png":     ("document",        "/collections"),
+    ".jpg":     ("document",        "/collections"),
+    ".jpeg":    ("document",        "/collections"),
+    ".tiff":    ("document",        "/collections"),
+    ".tif":     ("document",        "/collections"),
+    ".bmp":     ("document",        "/collections"),
+    ".webp":    ("document",        "/collections"),
+    ".gif":     ("document",        "/collections"),
 }
 
 NAME_HINTS: dict[str, tuple[str, str]] = {

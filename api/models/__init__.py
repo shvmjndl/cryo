@@ -3,5 +3,6 @@ from api.models.conversation import Conversation, Message
 from api.models.project import Project
 from api.models.workspace import Workspace, WorkspaceNode, WorkspaceEdge
 from api.models.upload import Upload
+from api.models.collection import Collection, CollectionFile
 
-__all__ = ["User", "Conversation", "Message", "Project", "Workspace", "WorkspaceNode", "WorkspaceEdge", "Upload"]
+__all__ = ["User", "Conversation", "Message", "Project", "Workspace", "WorkspaceNode", "WorkspaceEdge", "Upload", "Collection", "CollectionFile"]

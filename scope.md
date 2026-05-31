@@ -1,95 +1,299 @@
-# CRYO — From "Search AI" to "Synthesis AI"
+# CRYO Scope & Roadmap
 
-## Vision
-To empower an AI like CRYO to solve global biological challenges, the "right tech" integration must move beyond information retrieval (Reading) to experimental execution and biological synthesis (Writing). This document outlines the evolution into an Autonomous Biological Agent capable of designing and overseeing the creation of new biological entities by leveraging open-source projects.
+From autonomous "Search AI" → integrated "Synthesis AI" for global biological research challenges.
 
-## Phase 0: Workspace UI Stabilization (Immediate Focus)
-Before integrating advanced "Write Tech," it is critical to stabilize the recently developed multi-canvas workspace UI. This phase addresses the immediate actionable items identified in `currentstate_20260422_225041.json`.
+---
 
-1.  **Commit and Push:** Ensure all current workspace UI changes are committed and pushed to the repository.
-2.  **Comprehensive Workflow Testing:**
-    *   Thoroughly test the full workspace flow: create new workspace → add multiple nodes → engage in conversations within nodes → utilize the branch feature → reload the application → verify that all node positions, conversations, and branches persist correctly via PostgreSQL.
-    *   Test multiple workspace switching functionality to ensure nodes and edges load correctly per workspace.
-3.  **UI/UX Refinements:**
-    *   **Slash Command Dropdown Visibility:** Verify and fix any clipping issues in workspace nodes (e.g., by ensuring appropriate `overflow: visible` and `z-index` properties for the dropdown).
-    *   **Report Generation:** Test report generation from workspace nodes and verify that file download cards appear correctly in the UI.
-    *   **Node Resizing Discoverability:** Implement visual cues (e.g., cursor changes on edges, subtle highlights) to make the `NodeResizer` handles more obvious to the user.
-    *   **Workspace Management:** Add a 3-dot menu or similar UI element on workspace items in the left panel to allow users to delete workspaces.
-4.  **Production Hardening:** Implement error boundaries, comprehensive loading states, and appropriate empty states across the application to enhance robustness and user experience.
+## Current Status (v3 — May 2026)
 
-## Resource Requirements for Phase 1 "Write Tech" Integrations
+### ✅ Completed Features
 
-### 1. `/lab_connect` (Self-Driving Lab Integration)
-*   **Paid Services:** Yes, potentially. While the software (Opentrons Python API, PyLabRobot) is open-source, physical lab automation hardware (e.g., an Opentrons robot) must be purchased. Alternatively, interfacing with a "Cloud Lab" service would involve subscription or per-experiment fees.
-*   **GPU:** Not typically required; these operations are primarily CPU-bound.
+#### Phase 0: Read-Only Research (Delivered)
+- [x] **Multi-interface research platform** — Chat view + multi-canvas workspace
+- [x] **28+ biology tools** — Literature, proteins, drugs, variants, omics, analysis
+- [x] **Report Engine v4** — Interactive HTML with Plotly charts, Mermaid diagrams, callout blocks, timelines, tables
+- [x] **File upload & auto-classification** — Drag-drop with real-time progress; auto-suggests `/deseq`, `/scrna`, `/meta`, etc.
+- [x] **Workspace v2** — React Flow canvas with branching, resizable nodes, persistence (PostgreSQL), minimap, 10 workspaces/user
+- [x] **Collections v1** — Topic-based artifact organization (papers, genes, drugs, pathways)
+- [x] **Digital Twin v3** — Multi-backbone FBA (Human-GEM, iJO1366, Yeast8, Plasmodium)
+  - Human-GEM: cancer drug response + 49 CCLE cell line personalization
+  - Pathogen models: E. coli (antibacterial), S. cerevisiae (antifungal)
+  - ChEMBL/DGIdb drug targets + GDSC2 IC50 validation
+  - 8 integration tests (2026-04-30) ✓ all passing
+- [x] **GEM Graph API** — Query any backbone (stats, gene/reaction detail)
+- [x] **VLM OCR integration** — Gemini Vision 2 for image analysis (gels, microscopy)
+- [x] **PostgreSQL schema v2** — users, conversations, messages, workspaces, nodes, edges, uploads, collections
 
-### 2. `/design_protein` (Generative Structural Design)
-*   **Paid Services:** Highly likely. Running deep learning models like RFdiffusion and ProteinMPNN efficiently necessitates powerful GPUs. If local GPUs are unavailable, cloud-based GPU instances (e.g., AWS, GCP, Azure) would be required, incurring costs. Even free services (e.g., ColabFold) often have usage limits or paid tiers for sustained/high-performance use.
-*   **GPU:** **Essential.** Without dedicated GPU resources, computation times for protein design would be prohibitively long.
+#### Phase 1a: Workspace Hardening (In Progress)
+- [x] Workspace CRUD + persistence
+- [x] Node branching (context inheritance)
+- [x] File upload per node
+- [x] Multi-workspace switching (max 10, max 50 nodes each)
+- [ ] **Pending:** Node deletion UI, workspace export/import, batch operations
 
-### 3. `/digital_twin` (In Silico Patient Simulation)
-*   **Paid Services:** Generally no, for the open-source tools (COBRApy, Tellurium). These are CPU-bound. However, for very large-scale simulations or extensive multi-omics data management, cloud computing resources (VMs with increased RAM/CPU) may be chosen, leading to standard cloud infrastructure costs.
-*   **GPU:** Not typically required; these simulations are generally CPU-intensive.
+#### Phase 1b: Knowledge Graph (Planned)
+- [ ] Auto-link entities (genes, drugs, diseases) in reports
+- [ ] Graph visualization (Cytoscape.js) of relationships
+- [ ] Search across graph edges
 
-### 4. `/crispr_write` (Validated Sequence Engineering)
-*   **Paid Services:** Generally no, for the open-source tools (Biopython, gRNA design algorithms). These are CPU-bound. Similar to `/digital_twin`, very large-scale genome analysis might incur cloud compute costs if local resources are insufficient.
-*   **GPU:** Not typically required; these bioinformatics tasks are generally CPU-intensive.
+---
 
-## Phase 1: "Write Tech" Integration with Open Source
+## Phase 2: Advanced Analytics & Execution (Q2–Q3 2026)
 
-### 1. `/lab_connect` (Self-Driving Lab Integration)
-*   **Problem:** Antimicrobial Resistance (AMR) – Current capability identifies novel antibiotic scaffolds in literature.
-*   **"Write" Tech Integration (Potential):** Automated Chemical Synthesis and Experimental Execution. Directly interface with robotic labs to synthesize and test predicted molecules.
-*   **Open Source Focus:**
-    *   **Opentrons:** Leverage the Opentrons Python API for controlling robotic liquid handlers and other lab instruments.
-    *   **PyLabRobot:** Explore for broader instrument control and protocol automation if Opentrons is not sufficient for specific tasks.
-*   **Implementation Plan:**
-    1.  Develop a new Hermes Python tool (`cryo_lab_connect.py`) that wraps the chosen open-source lab automation APIs.
-    2.  Implement a command, e.g., `/lab_connect synthesize <molecule_SMILES> <quantity_mg> <binding_assay_target>`, which translates into a sequence of Opentrons/PyLabRobot commands.
-    3.  Integrate a simulator mode for in-silico protocol validation.
-*   **Impact:** Rapid discovery and empirical validation of non-traditional antibiotics and other bioactive molecules, moving from theoretical identification to tangible results.
+### 2.1 Multi-Omics Integration
+**Problem:** Rare disease diagnosis often requires synthesis of genomics + proteomics + transcriptomics.
 
-### 2. `/design_protein` (Generative Structural Design)
-*   **Problem:** Protein Engineering – Current capability predicts protein structures (e.g., AlphaFold).
-*   **"Write" Tech Integration (Potential):** Generative Protein Design. Use deep learning models to "write" de novo enzymes or binders.
-*   **Open Source Focus:**
-    *   **RFdiffusion & ProteinMPNN:** Integrate community-maintained open-source implementations of these powerful generative models for protein backbone and sequence design.
-    *   **AlphaFold/ColabFold:** Utilize for *in silico* structural validation of newly designed proteins.
-*   **Implementation Plan:**
-    1.  Set up a containerized (Docker) environment for computationally intensive protein design models (RFdiffusion, ProteinMPNN), ensuring necessary hardware acceleration (GPU) is configured.
-    2.  Create a new Hermes Python tool (`cryo_design_protein.py`) exposing functions like `/design_protein enzyme <reaction_type> <active_site_definition>` or `/design_protein binder <target_protein_PDB_ID> <desired_affinity_nM>`.
-    3.  The tool will orchestrate the generation of candidate protein structures and sequences, followed by optional structural validation using AlphaFold/ColabFold.
-*   **Impact:** Solving environmental and industrial crises by creating novel enzymes for plastic degradation or carbon capture, and developing new therapeutic proteins.
+**Deliverables:**
+- [ ] Unified analysis dashboard: upload genome + transcriptome + proteome → integrated report
+- [ ] Variant prioritization: population frequency + expression impact + protein structure
+- [ ] Pathway dysregulation score (across omics modalities)
 
-### 3. `/digital_twin` (In Silico Patient Simulation)
-*   **Problem:** Rare Genetic Diseases/Drug Toxicity – Current capability identifies causative mutations via VEP and ClinVar.
-*   **"Write" Tech Integration (Potential):** Multi-omics Integration Platform using metabolic modeling to simulate drug toxicity on a virtual patient model.
-*   **Open Source Focus:**
-    *   **COBRApy:** A robust Python package for constraint-based reconstruction and analysis of genome-scale metabolic networks.
-    *   **Tellurium/Antimony:** For dynamic modeling of biological systems, potentially complementing COBRApy.
-*   **Implementation Plan:**
-    1.  Develop a new Hermes Python tool (`cryo_digital_twin.py`) that leverages COBRApy for building and simulating personalized metabolic models.
-    2.  Implement commands like `/digital_twin simulate_drug_response <drug_ID> <patient_omics_profile_path>` which will construct a patient-specific metabolic model, simulate drug interactions, and predict outcomes.
-    3.  Integrate with open-source visualization libraries (e.g., Matplotlib, Plotly) for clear representation of simulation results.
-*   **Impact:** Truly personalized curative therapies and predictive toxicology by simulating drug effects on individual patient models before clinical application, reducing risks and accelerating therapeutic development.
+**Stack:** COBRApy + Scanpy + DESeq2; PostgreSQL for omics metadata; Neo4j (optional) for graph queries
 
-### 4. `/crispr_write` (Validated Sequence Engineering)
-*   **Problem:** Rare Genetic Diseases – Current capability identifies causative mutations.
-*   **"Write" Tech Integration (Potential):** AI-driven gRNA design with real-time off-target verification and synthesis ordering.
-*   **Open Source Focus:**
-    *   **Biopython:** For fundamental sequence manipulation and analysis.
-    *   **Open-source gRNA design algorithms:** Integrate academic or community-developed algorithms for optimal gRNA design (e.g., scoring functions for on-target efficiency, secondary structure prediction).
-    *   **Open-source off-target prediction tools:** Implement algorithms for *in silico* off-target assessment against reference genomes.
-    *   **PrimeDesign:** Investigate and integrate open-source implementations for prime editing guide RNA (pegRNA) design.
-*   **Implementation Plan:**
-    1.  Create a new Hermes Python tool (`cryo_crispr_write.py`) to automate gRNA design for various CRISPR systems.
-    2.  Implement commands like `/crispr_write design_gRNA <target_gene_ID> <mutation_details> <genome_assembly>` and subsequently for prime editing.
-    3.  The tool will design optimal gRNA sequences, perform *in silico* off-target prediction, and provide comprehensive reports including on-target efficiency and off-target scores.
-*   **Impact:** Precision genome engineering for therapeutic applications, enabling the development of highly specific gene therapies for genetic diseases with reduced off-target effects.
+**Effort:** 4–6 weeks (architecture + integration + testing)
 
-## General Architectural Considerations for Phase 1
-*   **Containerization (Docker):** Encapsulate complex dependencies for each "Write Tech" tool within Docker containers to ensure isolated, reproducible, and scalable deployment.
-*   **Hermes Tool Wrappers:** All "Write Tech" functionalities will be exposed as well-defined Hermes Python tools, allowing CRYO to orchestrate complex biological workflows through natural language commands.
-*   **Asynchronous Operations:** Implement asynchronous processing for potentially long-running computations (e.g., protein design, simulations), providing users with real-time status updates.
-*   **Data Standards:** Utilize open standards for biological data (e.g., PDB, FASTA, SBML) to ensure interoperability and ease of data exchange.
-*   **User Feedback & Visualization:** Design tool outputs to be clear, concise, and actionable, potentially including links to generated reports, interactive 3D visualizations, or plots to facilitate interpretation.
+### 2.2 Protein Design (GPU-Required)
+**Problem:** Novel enzyme discovery requires *de novo* design; current tool only predicts folding.
+
+**Deliverables:**
+- [ ] `/design_protein enzyme <cofactor> <reaction_class>` → structures + sequences
+  - RFdiffusion (backbone generation)
+  - ProteinMPNN (sequence design)
+  - AlphaFold validation
+- [ ] `/design_binder <target_pdb> <affinity_nM>` → multi-candidate ranking
+- [ ] Cost estimate + hardware requirements (GPU Docker container)
+
+**Stack:** RFdiffusion + ProteinMPNN + AlphaFold; Docker container; async Celery tasks
+
+**Effort:** 6–8 weeks (model setup + wrapper + validation + UI)
+
+**GPU Requirements:** NVIDIA A100/H100; ~$2–5/design on cloud (AWS SageMaker, GCP)
+
+### 2.3 Drug Synthesis Planning
+**Problem:** Identified scaffolds must be synthesized; route planning is manual.
+
+**Deliverables:**
+- [ ] `/design_synthesis <molecule_smiles> <preferred_reagents>` → synthetic routes
+  - AiZynthFinder (open-source retrosynthesis)
+  - RDKIT route feasibility scoring
+  - Reagent cost lookup
+
+**Stack:** AiZynthFinder + RDKit + openpyxl (for reagent sheets)
+
+**Effort:** 3–4 weeks
+
+---
+
+## Phase 3: Lab Execution & Feedback Loop (Q3–Q4 2026)
+
+### 3.1 Self-Driving Lab Integration
+**Problem:** Designs validated in-silico must be tested *in vitro*; robotic labs enable 24/7 execution.
+
+**Deliverables:**
+- [ ] `/lab_connect synthesize <molecule_smiles> <target_assay>` → generates Opentrons protocol
+  - Chemical synthesis (liquid handling, heating, mixing)
+  - Binding assay (ELISA or fluorescence)
+  - MIC determination (antibacterial context)
+- [ ] Live progress dashboard: status updates + image uploads from robot
+- [ ] Result feedback loop: agent learns from failures
+
+**Stack:** Opentrons API + PyLabRobot; async SSH/WebSocket to robot; result parser
+
+**Hardware:** Opentrons OT-2 or similar (~$100k capital) OR cloud lab subscription (SciLifeLab, Emerald Cloud Lab)
+
+**Effort:** 8–10 weeks (protocol generation + lab API + parsing + UI)
+
+### 3.2 Adaptive Workflow
+**Problem:** Negative results should trigger re-design; current flow is linear.
+
+**Deliverables:**
+- [ ] Multi-round optimization: failed compound → RFdiffusion variant → re-synthesize → re-test
+- [ ] Reward signal from wet lab integrated into agent reasoning
+- [ ] Cost tracking (synthesis + assay + staff time)
+
+**Effort:** 4–6 weeks (workflow orchestration + feedback parsing)
+
+---
+
+## Phase 4: CRISPR Therapeutic Design (Q4 2026–Q1 2027)
+
+### 4.1 gRNA Design & Off-Target Assessment
+**Problem:** Rare genetic diseases identified; CRISPR therapy requires precise targeting.
+
+**Deliverables:**
+- [ ] `/crispr_design target_gene:<TP53> mutation:<c.217G>A>` → top 10 gRNA candidates
+  - On-target scoring (MIT specificity, GC content, secondary structure)
+  - Off-target search (CHOPCHOP, Cas-OFFinder)
+  - Cell delivery assessment (AAV packaging constraints)
+- [ ] PAM variants: SpCas9 + xCas9 + new Cas orthologs
+- [ ] Prime editing support: pegRNA + nicking sgRNA co-design
+
+**Stack:** Biopython + off-target tools; CHOPCHOP API; public gRNA DB
+
+**Effort:** 6–8 weeks (algorithm integration + scoring + UI)
+
+### 4.2 Clinical Trial Readiness
+**Problem:** Designed therapies must meet regulatory standards.
+
+**Deliverables:**
+- [ ] Toxicity prediction (ChEMBL + DeepTox models)
+- [ ] Off-target effect modeling (RNA-seq + transcript prediction)
+- [ ] CMC (Chemistry, Manufacturing, Control) report generation
+- [ ] IND application template (FDA 1571)
+
+**Stack:** DeepTox models + template engines
+
+**Effort:** 8–10 weeks
+
+---
+
+## Resource Requirements & Constraints
+
+### Infrastructure
+
+| Component | Current | Phase 2 | Phase 3 | Phase 4 |
+|-----------|---------|---------|---------|---------|
+| **CPU** | 4c / 8GB | 8c / 16GB | 16c / 32GB | 16c / 32GB |
+| **GPU** | None | A100 (40GB) | A100 | A100 |
+| **Storage** | 100GB | 500GB | 1TB | 1TB |
+| **Monthly Cost (Cloud)** | ~$100 | ~$400 | ~$1500 (+ lab fees) | ~$400 |
+
+### Timeline & Effort Estimate
+
+```
+2026-06 ──── 2026-07 ──── 2026-08 ──── 2026-09 ──── 2026-10 ──── 2026-11 ──── 2026-12 ──── 2027-01
+│           │           │           │           │           │           │           │
+Phase 2a    Phase 2b    Phase 2c    Phase 3.1   Phase 3.2   Phase 4.1   Phase 4.2   Deploy
+Multi-Omics Protein     Synthesis   Lab Exec    Feedback    CRISPR      Clinical    v1.0
+(4–6w)      Design      Planning    Integration (4–6w)      Design      Readiness
+            (6–8w)      (3–4w)      (8–10w)                 (6–8w)      (8–10w)
+```
+
+**Total Effort:** ~50–60 person-weeks → 3–4 months with 2–3 FTE
+
+### Funding & Partnerships
+
+- **Phase 2 (Analytics):** Open-source libraries; ~$2k cloud compute/month
+- **Phase 3 (Lab):** **Lab hardware or subscription required**
+  - Opentrons OT-2: ~$100k capital + ~$5k/month supplies
+  - Cloud lab (Emerald, SciLifeLab): ~$500–2k per experiment
+  - **Partnership suggested:** University biotech core facility
+- **Phase 4 (CRISPR):** FDA pathway consulting recommended (~$50–100k)
+
+---
+
+## Risk & Mitigation
+
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| GPU compute costs | High | Use CPU variants first; apply for research credits (AWS, GCP) |
+| Lab hardware procurement | Critical | Partner with university; cloud lab subscription fallback |
+| Model training data drift | Medium | Quarterly validation against literature + wet lab results |
+| Regulatory compliance (FDA) | High | Engage regulatory consultant early (Phase 3) |
+| Tool versioning (ChEMBL, PDB) | Medium | SQLite cache + version pinning; 6-month refresh cycle |
+
+---
+
+## Success Metrics
+
+### By Phase
+
+**Phase 2:** 
+- [ ] 10 multi-omics analysis results published / validated
+- [ ] 5 novel protein designs tested *in silico* (FAPE < 2.5 Å)
+
+**Phase 3:**
+- [ ] 20 synthesized compounds from designed scaffolds
+- [ ] 5+ verified hits in binding assay
+- [ ] <2 week design-to-lab turnaround time
+
+**Phase 4:**
+- [ ] 3 gRNA panels designed for clinical rare disease targets
+- [ ] 1 IND application pre-submission package (FDA-ready)
+- [ ] <$50k cost per therapy design (vs. $1M+ traditional)
+
+### Overall (v1.0 Release)
+- 100+ active users
+- 50+ published reports
+- 5+ clinical collaboration partnerships
+- Demonstrated cost reduction vs. traditional drug discovery (10x)
+
+---
+
+## Code Organization for Phase 2+
+
+```
+cryo/
+├── api/
+│   ├── services/
+│   │   ├── omics_integration/      # Phase 2a
+│   │   │   ├── variant_prioritizer.py
+│   │   │   ├── pathway_dysregulation.py
+│   │   │   └── multi_omics_report.py
+│   │   ├── protein_design/         # Phase 2b (GPU)
+│   │   │   ├── rfdiffusion_wrapper.py
+│   │   │   ├── proteinmpnn_wrapper.py
+│   │   │   └── design_orchestrator.py
+│   │   ├── synthesis_planning/     # Phase 2c
+│   │   │   ├── retrosynthesis.py
+│   │   │   └── route_optimizer.py
+│   │   ├── lab_automation/         # Phase 3.1
+│   │   │   ├── opentrons_protocol.py
+│   │   │   ├── lab_api_client.py
+│   │   │   └── result_parser.py
+│   │   └── crispr_design/          # Phase 4.1
+│   │       ├── grna_designer.py
+│   │       ├── off_target_finder.py
+│   │       └── prime_editor.py
+│   └── routers/
+│       ├── omics.py                # /api/omics/*
+│       ├── protein_design.py       # /api/design/*
+│       ├── synthesis.py            # /api/synthesis/*
+│       ├── lab.py                  # /api/lab/*
+│       └── crispr.py               # /api/crispr/*
+├── hermes-agent/tools/
+│   ├── cryo_omics_integration.py    # Multi-omics tool
+│   ├── cryo_protein_design.py       # Protein design tool
+│   ├── cryo_synthesis.py            # Synthesis planning tool
+│   ├── cryo_lab_connect.py          # Lab execution tool
+│   └── cryo_crispr.py               # CRISPR design tool
+├── frontend/src/
+│   ├── pages/
+│   │   ├── OmicsPage.tsx            # Phase 2a UI
+│   │   ├── ProteinDesignPage.tsx    # Phase 2b UI
+│   │   ├── LabDashboard.tsx         # Phase 3 UI
+│   │   └── CRISPRPage.tsx           # Phase 4 UI
+│   └── components/
+│       ├── OmicsUpload.tsx
+│       ├── ProteinViewer3D.tsx
+│       └── LabProgressMonitor.tsx
+└── tests/
+    ├── test_omics_integration.py
+    ├── test_protein_design.py
+    ├── test_synthesis.py
+    ├── test_lab_automation.py
+    └── test_crispr_design.py
+```
+
+---
+
+## Notes & Decisions
+
+### On Digital Twin v3
+- **Why multi-backbone?** Different organisms require different models; E. coli iJO1366 needed for antibiotics
+- **Why CCLE personalization?** Cell line RNA expression constraints are the only way to get realistic drug effects
+- **Why not GTEx?** Disease context matters; tissue-specific models easier with cancer lines
+
+### On Workspace Branching
+- **Node inheritance:** Child nodes inherit parent conversation context (enables hypothesis trees)
+- **Max 50 nodes/workspace:** Prevents UI performance degradation; users typically use 5–10 per project
+
+### On Report Engine v4
+- **Why :::blocks?** Markdown extensible without HTML; integrates with agent reasoning
+- **Why Plotly?** Interactive JS charts render client-side; no server-side image generation overhead
+
+### On Phase Ordering
+1. **Phase 2 first:** Analytics unlocks the most immediate research value; no lab required
+2. **Phase 3 depends on Phase 2:** Lab execution needs high-confidence designs from multi-omics
+3. **Phase 4 parallel to 3:** CRISPR design independent; can run in parallel if resources allow
+

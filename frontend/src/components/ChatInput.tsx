@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Send, Dna } from 'lucide-react'
+import { Send, Dna, X } from 'lucide-react'
 import SlashMenu, { type SlashCommand, type GemModel, CELL_LINES, GEM_MODELS } from './SlashMenu'
+import FileMentionMenu from './FileMentionMenu'
 import FileUploadButton from './FileUploadButton'
-import type { UploadRecord } from '../lib/api'
+import type { UploadRecord, CollectionFileRecord } from '../lib/api'
+import { collections } from '../lib/api'
 
 const DEFAULT_COMMANDS: SlashCommand[] = [
   // Literature
@@ -45,7 +47,6 @@ const DEFAULT_COMMANDS: SlashCommand[] = [
   { command: '/chart',       description: 'Generate visualization',              example: '/chart cancer mutation frequency',            category: 'output' },
 ]
 
-// Detect if user has typed --cell_line (with optional partial name after it)
 function detectCellLineMode(val: string): { active: boolean; filter: string } {
   const isDigitalTwin = val.startsWith('/digital_twin') || val.startsWith('/simulate')
   if (!isDigitalTwin) return { active: false, filter: '' }
@@ -55,7 +56,6 @@ function detectCellLineMode(val: string): { active: boolean; filter: string } {
   return { active: false, filter: '' }
 }
 
-// Detect if user has typed --model (with optional partial backbone after it)
 function detectModelMode(val: string): { active: boolean; filter: string } {
   const isDigitalTwin = val.startsWith('/digital_twin') || val.startsWith('/simulate')
     || val.startsWith('/gem')
@@ -66,8 +66,20 @@ function detectModelMode(val: string): { active: boolean; filter: string } {
   return { active: false, filter: '' }
 }
 
+// Detect @ mention: triggers when last word starts with @
+function detectMentionMode(val: string): { active: boolean; filter: string } {
+  const match = val.match(/@(\w*)$/)
+  if (match) return { active: true, filter: match[1] }
+  return { active: false, filter: '' }
+}
+
+interface MentionedFile {
+  id: string
+  name: string
+}
+
 interface Props {
-  onSend: (message: string) => void
+  onSend: (message: string, fileIds?: string[]) => void
   disabled?: boolean
   conversationId?: string
 }
@@ -81,6 +93,13 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
   const [cellLineFilter, setCellLineFilter] = useState('')
   const [modelMode, setModelMode] = useState(false)
   const [modelFilter, setModelFilter] = useState('')
+
+  // @ mention state
+  const [mentionMode, setMentionMode] = useState(false)
+  const [mentionFilter, setMentionFilter] = useState('')
+  const [availableFiles, setAvailableFiles] = useState<CollectionFileRecord[]>([])
+  const [mentionedFiles, setMentionedFiles] = useState<MentionedFile[]>([])
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const filteredCommands = DEFAULT_COMMANDS.filter(c =>
@@ -92,6 +111,16 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     cl.toLowerCase().includes(cellLineFilter.toLowerCase())
   )
 
+  const filteredModels = GEM_MODELS.filter(m =>
+    m.key.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    m.label.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    m.organism.toLowerCase().includes(modelFilter.toLowerCase())
+  )
+
+  const filteredFiles = availableFiles.filter(f =>
+    f.original_filename.toLowerCase().includes(mentionFilter.toLowerCase())
+  )
+
   // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current
@@ -101,34 +130,51 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     }
   }, [input])
 
+  // Fetch available files when @ mode activates
+  useEffect(() => {
+    if (!mentionMode) return
+    collections.listFiles(conversationId).then(setAvailableFiles).catch(() => setAvailableFiles([]))
+  }, [mentionMode, conversationId])
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setInput(val)
     setSelectedIndex(0)
 
-    // --model sub-menu takes priority first
+    // --model sub-menu
     const mMode = detectModelMode(val)
     if (mMode.active) {
       setModelMode(true)
       setModelFilter(mMode.filter)
       setCellLineMode(false)
       setShowSlash(false)
+      setMentionMode(false)
       return
     }
     setModelMode(false)
 
-    // Cell line sub-menu takes priority when --cell_line detected
+    // --cell_line sub-menu
     const clMode = detectCellLineMode(val)
     if (clMode.active) {
       setCellLineMode(true)
       setCellLineFilter(clMode.filter)
       setShowSlash(false)
+      setMentionMode(false)
       return
     }
-
     setCellLineMode(false)
 
-    // Slash command menu: only when input is purely a slash command fragment
+    // @ mention
+    const mtn = detectMentionMode(val)
+    if (mtn.active) {
+      setMentionMode(true)
+      setMentionFilter(mtn.filter)
+      setShowSlash(false)
+      return
+    }
+    setMentionMode(false)
+
+    // Slash command menu
     if (val === '/' || val.match(/^\/\w*$/)) {
       setShowSlash(true)
       setSlashFilter(val)
@@ -137,24 +183,32 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     }
   }, [])
 
-  const filteredModels = GEM_MODELS.filter(m =>
-    m.key.toLowerCase().includes(modelFilter.toLowerCase()) ||
-    m.label.toLowerCase().includes(modelFilter.toLowerCase()) ||
-    m.organism.toLowerCase().includes(modelFilter.toLowerCase())
-  )
-
-  const selectModel = (model: GemModel) => {
-    const newVal = input.replace(/--(?:model|backbone)\s*\S*$/, `--model ${model.key}`)
-    setInput(newVal)
-    setModelMode(false)
+  const selectMention = useCallback((file: CollectionFileRecord) => {
+    // Replace the trailing @filter with @filename
+    const newInput = input.replace(/@\w*$/, `@${file.original_filename} `)
+    setInput(newInput)
+    setMentionMode(false)
     setSelectedIndex(0)
+    // Track mentioned file (deduplicate)
+    setMentionedFiles(prev => prev.some(f => f.id === file.id) ? prev : [...prev, { id: file.id, name: file.original_filename }])
     textareaRef.current?.focus()
-  }
+  }, [input])
+
+  const removeMention = useCallback((fileId: string) => {
+    const file = mentionedFiles.find(f => f.id === fileId)
+    if (file) {
+      setInput(prev => prev.replace(new RegExp(`@${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?`, 'g'), ''))
+    }
+    setMentionedFiles(prev => prev.filter(f => f.id !== fileId))
+    textareaRef.current?.focus()
+  }, [mentionedFiles])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const menuOpen = showSlash || cellLineMode || modelMode
+    const menuOpen = showSlash || cellLineMode || modelMode || mentionMode
     const listLength = modelMode ? filteredModels.length
-      : cellLineMode ? filteredCellLines.length : filteredCommands.length
+      : cellLineMode ? filteredCellLines.length
+      : mentionMode ? filteredFiles.length
+      : filteredCommands.length
 
     if (menuOpen) {
       if (e.key === 'ArrowDown') {
@@ -173,6 +227,8 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
           selectModel(filteredModels[selectedIndex])
         } else if (cellLineMode && filteredCellLines[selectedIndex]) {
           selectCellLine(filteredCellLines[selectedIndex])
+        } else if (mentionMode && filteredFiles[selectedIndex]) {
+          selectMention(filteredFiles[selectedIndex])
         } else if (showSlash && filteredCommands[selectedIndex]) {
           selectCommand(filteredCommands[selectedIndex])
         }
@@ -182,6 +238,7 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
         setShowSlash(false)
         setCellLineMode(false)
         setModelMode(false)
+        setMentionMode(false)
         return
       }
     }
@@ -190,7 +247,7 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
       e.preventDefault()
       handleSend()
     }
-  }, [showSlash, cellLineMode, filteredCommands, filteredCellLines, selectedIndex, input])
+  }, [showSlash, cellLineMode, modelMode, mentionMode, filteredCommands, filteredCellLines, filteredModels, filteredFiles, selectedIndex, input, selectMention])
 
   const selectCommand = (cmd: SlashCommand) => {
     setInput(cmd.command + ' ')
@@ -200,7 +257,6 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
   }
 
   const selectCellLine = (cellLine: string) => {
-    // Replace partial name after --cell_line with the selected line
     const newVal = input.replace(/--cell_line\s*\S*$/, `--cell_line ${cellLine}`)
     setInput(newVal)
     setCellLineMode(false)
@@ -208,14 +264,25 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     textareaRef.current?.focus()
   }
 
+  const selectModel = (model: GemModel) => {
+    const newVal = input.replace(/--(?:model|backbone)\s*\S*$/, `--model ${model.key}`)
+    setInput(newVal)
+    setModelMode(false)
+    setSelectedIndex(0)
+    textareaRef.current?.focus()
+  }
+
   const handleSend = () => {
     const trimmed = input.trim()
     if (!trimmed || disabled) return
-    onSend(trimmed)
+    const fileIds = mentionedFiles.map(f => f.id)
+    onSend(trimmed, fileIds.length ? fileIds : undefined)
     setInput('')
     setShowSlash(false)
     setCellLineMode(false)
     setModelMode(false)
+    setMentionMode(false)
+    setMentionedFiles([])
   }
 
   const handleUploaded = useCallback((record: UploadRecord) => {
@@ -227,10 +294,30 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
     textareaRef.current?.focus()
   }, [])
 
+  const handleDocumentUploaded = useCallback((record: CollectionFileRecord) => {
+    // Auto-tag the uploaded document as a mention
+    setMentionedFiles(prev =>
+      prev.some(f => f.id === record.id)
+        ? prev
+        : [...prev, { id: record.id, name: record.original_filename }]
+    )
+    textareaRef.current?.focus()
+  }, [])
+
   const menuVisible = showSlash || cellLineMode || modelMode
 
   return (
     <div className="relative">
+      {/* @ file mention menu */}
+      <FileMentionMenu
+        files={availableFiles}
+        filter={mentionFilter}
+        selectedIndex={selectedIndex}
+        onSelect={selectMention}
+        visible={mentionMode}
+      />
+
+      {/* Slash / cell-line / model menus */}
       <SlashMenu
         commands={DEFAULT_COMMANDS}
         filter={slashFilter}
@@ -244,6 +331,27 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
         onSelectModel={selectModel}
       />
 
+      {/* Mentioned file pills */}
+      {mentionedFiles.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-1.5 px-1">
+          {mentionedFiles.map(f => (
+            <span
+              key={f.id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-[var(--color-cryo-accent)]/15 text-[var(--color-cryo-accent)] border border-[var(--color-cryo-accent)]/30"
+            >
+              <span className="max-w-[180px] truncate">{f.name}</span>
+              <button
+                onClick={() => removeMention(f.id)}
+                className="hover:text-[var(--color-cryo-text)] transition-colors"
+                tabIndex={-1}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-end gap-2 p-3 rounded-xl bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border)] focus-within:border-[var(--color-cryo-accent)] transition-colors">
         <Dna className="w-5 h-5 text-[var(--color-cryo-accent)] mb-1.5 flex-shrink-0 opacity-50" strokeWidth={1.5} />
         <textarea
@@ -251,7 +359,7 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
           value={input}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder='Ask about biology or type "/" for tools...'
+          placeholder='Ask about biology, type "/" for tools, "@" to tag a document...'
           disabled={disabled}
           rows={1}
           className="flex-1 bg-transparent text-[var(--color-cryo-text)] placeholder:text-[var(--color-cryo-text-muted)] resize-none focus:outline-none text-sm leading-relaxed"
@@ -259,6 +367,7 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
         <div className="flex items-center gap-1 mb-0.5 flex-shrink-0">
           <FileUploadButton
             onUploaded={handleUploaded}
+            onDocumentUploaded={handleDocumentUploaded}
             conversationId={conversationId}
           />
           <button
@@ -273,7 +382,8 @@ export default function ChatInput({ onSend, disabled, conversationId }: Props) {
 
       <div className="flex items-center justify-between mt-2 px-1">
         <span className="text-xs text-[var(--color-cryo-text-muted)] font-mono">
-          Type <kbd className="px-1 py-0.5 rounded bg-[var(--color-cryo-surface-3)] text-[var(--color-cryo-accent)]">/</kbd> for tools
+          Type <kbd className="px-1 py-0.5 rounded bg-[var(--color-cryo-surface-3)] text-[var(--color-cryo-accent)]">/</kbd> for tools ·{' '}
+          <kbd className="px-1 py-0.5 rounded bg-[var(--color-cryo-surface-3)] text-[var(--color-cryo-accent)]">@</kbd> to tag a document
         </span>
         <span className="text-xs text-[var(--color-cryo-text-muted)]">
           Shift+Enter for newline

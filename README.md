@@ -1,19 +1,25 @@
 # CRYO — Comprehensive Research Yielding Outcomes
 
-AI-powered biology research platform with multi-canvas workspace. Mine literature, annotate proteins, repurpose drugs, interpret genomic variants, run omics pipelines, and generate interactive research reports — branch and explore like a research flowchart.
+**AI-powered biology research platform** designed for autonomous scientific discovery. Synthesize literature, analyze proteins, repurpose drugs, interpret genomic variants, run omics pipelines, simulate metabolic drug responses, and generate publication-ready interactive reports — branch and explore research hypotheses like a visual flowchart.
 
-Built on [Hermes Agent](https://github.com/nousresearch/hermes-agent) with 28 custom biology tools + a genome-scale metabolic **Digital Twin** engine, powered by Gemini 3 Pro Preview.
+**Built on:** [Hermes Agent](https://github.com/nousresearch/hermes-agent) with **28+ biology tools** | **Genome-scale metabolic digital twin engine** (Human-GEM, iJO1366, Yeast8, etc.) | **Interactive report engine v4** with charts, diagrams, callouts, timelines | **Google Gemini 3 Pro Preview** | **React Flow workspace** | **PostgreSQL persistence**
 
 ## Quick Start
 
 ```bash
 git clone <repo-url> cryo && cd cryo
-cp .env.example .env       # Set GEMINI_API_KEY, JWT_SECRET
-bash cryo.sh               # Builds image + starts all services + tails logs
-open http://localhost:3000
+cp .env.example .env           # Set GEMINI_API_KEY, JWT_SECRET (required)
+bash cryo.sh                   # Builds Docker image + starts all services (db, api, frontend)
+open http://localhost:3000     # Access CRYO in browser
 ```
 
-Default superuser: `creator@cryo.in` / `creator@shivam0705`
+**Default superuser:** `creator@cryo.in` / `creator@shivam0705`
+
+**Services:**
+- 🖥️ **Frontend** (React 19 + TypeScript): http://localhost:3000
+- 🔌 **API** (FastAPI + SSE): http://localhost:8000
+- 🗄️ **PostgreSQL 17**: localhost:5432
+- 📊 **Reports serve** from `/cryo-data/users/{uid}/conversations/{cid}/reports/`
 
 ## Two Interfaces
 
@@ -116,53 +122,119 @@ Type `/` in any chat or workspace node. Commands are grouped by category:
 | `/report <topic>` | `/report glioblastoma drug targets` | Generate interactive HTML report |
 | `/chart <topic>` | `/chart cancer mutation frequency` | Generate visualization |
 
-## File Upload
+## File Upload & Collections
 
-Every chat (chat mode and workspace nodes) has a file upload button. Files are tracked in PostgreSQL and auto-classified.
+### Upload Feature (v2 — 2026-05-15)
 
-**How to use:**
-1. Click the paperclip icon or drag-and-drop a file onto the input area
-2. File uploads with a real-time progress bar
-3. On success, the suggested command + server path are auto-inserted into the input
-4. Send to run the analysis
+Every chat (chat mode and workspace nodes) has a **drag-drop file upload** button with real-time progress tracking.
 
-**Auto-classification:**
-| File | Detected As | Suggested Command |
+**Workflow:**
+1. Click the 📎 icon or drag-and-drop a file onto the input area
+2. Real-time progress bar shows upload status
+3. **Auto-classified:** suggested command + server path inserted into input
+4. Send to run the analysis or share with agent
+
+**Auto-classification Engine:**
+| File Pattern | Detected As | Suggested Command |
 |------|-------------|-------------------|
 | `*counts*.csv`, `*expression*.csv` | RNA-seq counts | `/deseq` |
-| `*.h5ad` | scRNA-seq | `/scrna` |
-| `*.bam` | BAM alignment | `/atac` |
-| `*.fastq.gz`, `*.fq.gz` | FASTQ reads | `/meta` |
-| `*proteingroups*.txt` | Proteomics | `/ms` |
+| `*.h5ad`, `*.h5`, `*.hdf5` | scRNA-seq | `/scrna` |
+| `*.bam` | BAM alignment | `/atac` or `/chip` |
+| `*.fastq.gz`, `*.fq.gz`, `*.fastq` | FASTQ reads | `/meta` |
+| `*proteingroups*.txt` | MS proteomics | `/ms` |
 | `*sec*.csv` | SEC chromatography | `/sec` |
-| `*.xlsx` | Spreadsheet | `/export` |
+| `*.xlsx`, `*.xls` | Spreadsheet | `/export` |
 | `*.fa`, `*.fasta` | FASTA sequence | `/protein` |
+| `*.pdf`, `*.png`, `*.jpg` | Images/documents | `/analyze_image_vlm` |
 
-**Accepted formats:** `.csv`, `.tsv`, `.txt`, `.h5ad`, `.h5`, `.hdf5`, `.bam`, `.fastq`, `.fastq.gz`, `.fq`, `.fq.gz`, `.xlsx`, `.xls`, `.parquet`, `.json`, `.fa`, `.fasta`
+**Specs:**
+- **Accepted formats:** `.csv`, `.tsv`, `.txt`, `.h5ad`, `.h5`, `.hdf5`, `.bam`, `.fastq`, `.fastq.gz`, `.fq`, `.fq.gz`, `.xlsx`, `.xls`, `.parquet`, `.json`, `.fa`, `.fasta`, `.pdf`, `.png`, `.jpg`, `.jpeg`
+- **Max file size:** 2 GB
+- **Storage:** `/cryo-data/uploads/{user_id}/`
+- **Metadata:** PostgreSQL `uploads` table tracks filename, size, data_type, conversation_id, usage_count
 
-**Max file size:** 2 GB
+### Collections (v1 — 2026-05-15)
 
-Files are stored in `/cryo-data/uploads/{user_id}/` and tracked in the `uploads` PostgreSQL table with filename, size, data_type, conversation link, and usage counter.
+**Organize research artifacts** into topic collections. Reference collections in chat to automatically inject context.
 
-## Digital Twin
-
-CRYO includes a genome-scale metabolic drug simulation engine built on [Human-GEM](https://github.com/SysBioChalmers/Human-GEM) (12,931 reactions, 2,848 genes) and COBRApy FBA.
-
+**Usage:**
 ```bash
-/digital_twin glucose_inhibitor              # hardcoded — shows real biomass drop
-/digital_twin metformin --cell_line HeLa     # Complex I → mitochondrial metabolism
-/simulate 5-fluorouracil --cell_line HCT116  # TYMS target, GDSC IC50 = 15.0 μM
-/digital_twin imatinib --cell_line MCF7      # ABL1/KIT/PDGFRB annotated; 0% Δbiomass (kinase, expected)
+/collection create Alzheimer_drug_targets
+/collection add <topic> → adds to active collection
+/collection list → shows all collections + item counts
+/collection show <name> → displays collection contents
+@collection:Alzheimer_drug_targets → mentions collection in chat (injects metadata)
 ```
 
-### What it does
+**Schema:**
+- Collections: user_id, name, created_at, description, metadata
+- Items: collection_id, content_type (paper, gene, drug, pathway), identifier, extracted_data
+- Auto-populated from: reports, literature searches, drug lookups, gene annotations
 
-1. **Drug target resolution** — ChEMBL REST → DGIdb GraphQL → SQLite cache (7-day TTL)
-2. **Cell line personalization** — CCLE expression data (49 cell lines, 19,215 genes) → GPR scaling
-3. **Media contextualization** — CCLE available → `human1_minimal` + GPR; no CCLE → `cancer_warburg`
-4. **FBA simulation** — baseline and perturbed flux balance analysis; 90% inhibition on drug-targeted reactions
-5. **GDSC2 validation** — experimental IC50 (μM) lookup from 235,748 drug-cell pairs
-6. **Citations** — Human-GEM + COBRApy always; ChEMBL/DGIdb/CCLE/GDSC conditionally
+## Digital Twin v3 (Multi-Backbone Simulation Engine)
+
+CRYO includes a **genome-scale metabolic drug simulation engine** supporting **multiple organism models** with real drug target lookup and cell-line personalization.
+
+### Supported Models (Backbones)
+
+| Backbone | Organism | Reactions | Genes | Cell Line Support |
+|----------|----------|-----------|-------|------------------|
+| **Human-GEM** | *Homo sapiens* | 12,931 | 2,848 | ✅ 49 CCLE lines |
+| **iJO1366** | *E. coli* K-12 | 1,366 | 1,337 | ❌ Generic only |
+| **Yeast8** | *S. cerevisiae* | 3,953 | 1,045 | ❌ Generic only |
+| **Plasmodium** | *P. falciparum* | 1,267 | 705 | ❌ Generic only |
+
+### Usage Examples
+
+```bash
+/digital_twin glucose_inhibitor              # Human-GEM: hardcoded target on MAR09034
+/digital_twin metformin --cell_line HeLa     # Human-GEM + CCLE GPR scaling (MCF7, HeLa, etc.)
+/simulate 5-fluorouracil --cell_line HCT116  # TYMS target lookup, GDSC IC50 validation
+/digital_twin imatinib --cell_line MCF7      # ABL1/KIT/PDGFRB from ChEMBL; ~8 biomass (MCF7-specific)
+/digital_twin trimethoprim --model ijo1366   # Pathogen: folA gene mapping, iJO1366 backbone
+/digital_twin fluconazole --model yeast8     # Yeast: ERG11 target, S. cerevisiae model
+/gem stats --model ijo1366                   # Query genome stats: 1,366 reactions, 1,337 genes
+```
+
+### Recent Validations (2026-04-30)
+
+| Drug | Backbone | Target | Cell Line | Biomass Change | Notes |
+|------|----------|--------|-----------|----------------|-------|
+| `trimethoprim` | iJO1366 | folA → DHFR | — | **-90%** ✓ | Pathogen digital twin |
+| `sulfamethoxazole` | iJO1366 | folP → DHPS2 | — | **-90%** ✓ | Antibacterial |
+| `fluconazole` | yeast8 | ERG11 → r_0317 | — | **-90%** ✓ | Antifungal |
+| `metformin` | Human-GEM | MT-ND1 (Complex I) | MCF7 | **-18%** ✓ | Cell-line specific |
+| `imatinib` | Human-GEM | ABL1/KIT/PDGFRA | MCF7 | **0%** (kinase) | Expected (signaling) |
+
+### Pipeline: Drug → FBA → Report
+
+1. **Drug target resolution**
+   - Human drugs: ChEMBL REST + DGIdb GraphQL with SQLite cache (7-day TTL)
+   - Pathogen drugs: Custom pathogen_targets_db for *E. coli*, *S. cerevisiae*, *P. falciparum*
+   - Fallback: Query as reaction ID directly (e.g., `MAR09034` for glucose exchange)
+
+2. **Model selection**
+   - `--model ijo1366`: *E. coli* iJO1366 (antibacterial context)
+   - `--model yeast8`: *S. cerevisiae* (antifungal context)
+   - Default (Human-GEM): Cancer drug response, metabolic disease
+
+3. **Cell line personalization** (Human-GEM only)
+   - CCLE expression data (49 cell lines × 19,215 genes)
+   - Gene expression → reaction GPR constraints (TPM < 1.0 → upper_bound = 0.001)
+   - Media adaptation: `cancer_warburg` (generic) or `human1_minimal` (CCLE-constrained)
+
+4. **FBA simulation**
+   - Baseline flux balance (growth rate as biomass production)
+   - Perturbed: 90% inhibition on drug-targeted reactions
+   - Delta computation: `(perturbed_biomass - baseline) / baseline × 100%`
+
+5. **GDSC2 validation** (Human drugs + cell lines)
+   - Lookup experimental IC50 (μM) from 235,748 drug-cell pairs
+   - Display in report with trial phase data
+
+6. **HTML report + PNG plot**
+   - Markdown with :::diagram (pathway), :::callout (findings), tables
+   - Flux bar chart (top 10 reactions, delta values)
 
 ### `--cell_line` flag
 
@@ -238,90 +310,108 @@ Reports open in a slide-in side panel within CRYO — no new browser tab.
 │  React 19 · TypeScript · Tailwind 4 · Vite 6 · React Flow 12    │
 │                                                                    │
 │  ┌─ Chat View ──────────┐  ┌─ Workspace View ──────────────────┐ │
-│  │ Sidebar + ChatPage   │  │ React Flow canvas                  │ │
-│  │ ChatInput + SlashMenu│  │ ChatNode (mini chat, per node)     │ │
-│  │ FileUploadButton     │  │ FileUploadButton (compact)         │ │
-│  │ ReportPanel (side)   │  │ Branching, resize, pan/zoom        │ │
+│  │ Sidebar + ChatPage   │  │ React Flow canvas (pan/zoom)       │ │
+│  │ ChatInput + SlashMenu│  │ Resizable ChatNodes (mini chat)    │ │
+│  │ FileUploadButton     │  │ Branching (context inheritance)    │ │
+│  │ ReportPanel (slide)  │  │ File upload per node               │ │
 │  │ MessageBubble (md)   │  │ Workspace persistence (PG)         │ │
 │  └──────────────────────┘  └────────────────────────────────────┘ │
+│                                                                    │
+│  Collections: Topic-based metadata org (papers, genes, drugs)    │
+│  File Mentions: @file:name syntax in chat                        │
 └───────────────────────────┬──────────────────────────────────────┘
                             │ HTTP + SSE
 ┌───────────────────────────▼──────────────────────────────────────┐
 │                    FastAPI Backend (localhost:8000)                 │
 │                                                                    │
-│  /api/auth/*          JWT auth (signup, login, me)                 │
-│  /api/chat/*          Conversations, SSE streaming, tools list     │
-│  /api/workspace/*     List, create, get, save, rename, delete      │
-│  /api/uploads         File upload, list, delete (2GB limit)        │
-│  /api/reports/*       Serve generated HTML/Excel/PNG               │
-│  /api/digital-twin/*  Metabolic simulation endpoints               │
-│  /api/health          Health check                                 │
+│  /api/auth/*              JWT auth (signup, login, me)             │
+│  /api/chat/*              Conversations, SSE streaming             │
+│  /api/workspace/*         CRUD + node positions/edges save         │
+│  /api/collections/*       Topic org (create, add, show)            │
+│  /api/uploads             File upload, list, delete (2GB)          │
+│  /api/reports/*           Serve HTML/Excel/PNG reports             │
+│  /api/digital-twin/*      Metabolic simulation REST endpoints      │
+│  /api/gem/*               Genome-scale model queries               │
+│  /api/health              Health + dependency check                │
 │                                                                    │
-│  HermesBridge         Slash translation, conversation history,     │
-│                       report format injection, per-request agent   │
-│  Report Engine v4     Markdown → interactive HTML (Plotly, Mermaid,│
-│                       callouts, timelines, progress bars, tables)  │
+│  HermesBridge             Slash command dispatch, agent wrapper     │
+│  Report Engine v4         Markdown + :::blocks → interactive HTML   │
+│  Digital Twin Service v3  Multi-backbone FBA + GPR scaling         │
+│  VLM Client               Gemini Vision 2 integration (images)     │
 └──────────┬───────────────────────────┬───────────────────────────┘
            │                           │
 ┌──────────▼──────────┐  ┌────────────▼────────────────────────────┐
 │   PostgreSQL 17     │  │   Hermes Agent (per-request)             │
-│                     │  │   gemini-3-pro-preview · 32K tokens      │
+│                     │  │   google-gemini-3-pro-preview · 32K       │
 │  users, api_keys    │  │                                          │
-│  conversations      │  │  28 CRYO Tools:                          │
+│  conversations      │  │  28+ CRYO Tools:                         │
 │  messages           │  │   pubmed_search · biorxiv_search         │
 │  workspaces         │  │   fetch_citation · uniprot_lookup        │
-│  workspace_nodes    │  │   pdb_search · chembl_search             │
-│  workspace_edges    │  │   opentargets_search · vep               │
-│  uploads            │  │   clinvar_lookup · ensembl_vep           │
-│  papers, genes      │  │   stringdb_ppi · kegg_pathway            │
-│  proteins, drugs    │  │   reactome_enrichment                    │
-│  variants           │  │   differential_expression (PyDESeq2)     │
-│  knowledge_edges    │  │   scrna_analysis (Scanpy)                │
-│                     │  │   cell_annotation (CellTypist)           │
-└─────────────────────┘  │   atac_seq · chip_seq (MACS3)           │
-                          │   metagenomics (Kraken2+HUMAnN3)        │
-┌─────────────────────┐  │   proteomics_ms · sec_report            │
-│  cryo-data/         │  │   novelty_check · manuscript_pipeline    │
-│  (bind-mounted)     │  │   compile_report · generate_excel        │
-│  users/{uid}/       │  │   generate_chart · verify_claim          │
-│   uploads/          │  │   analyze_image_vlm · deep_research      │
-│   conversations/    │  │   digital_twin                           │
-│    {cid}/           │  └──────────────────────────────────────────┘
-│     reports/*.html  │
-│  models/human1/     │  ┌──────────────────────────────────────────┐
-│  ccle/*.parquet     │  │   Digital Twin Engine                     │
-│  gdsc/*.csv         │  │   Human-GEM (12,931 rxns, 2,848 genes)   │
-│  cache/             │  │   COBRApy FBA · CCLE GPR scaling         │
-└─────────────────────┘  │   ChEMBL + DGIdb drug target lookup      │
-                          │   GDSC2 IC50 validation                  │
-                          │   SQLite drug cache (7-day TTL)          │
-                          └──────────────────────────────────────────┘
+│  workspace_nodes    │  │   pdb_search · chembl_search · targets   │
+│  workspace_edges    │  │   opentargets_search · clinvar_lookup    │
+│  uploads            │  │   ensembl_vep · stringdb_ppi             │
+│  collections        │  │   kegg_pathway · reactome_enrichment     │
+│  papers, genes      │  │   differential_expression (PyDESeq2)     │
+│  proteins, drugs    │  │   scrna_analysis · cell_annotation       │
+│  variants           │  │   atac_seq · chip_seq (MACS3)            │
+│  knowledge_edges    │  │   metagenomics · proteomics_ms · sec_*   │
+│                     │  │   novelty_check · manuscript_pipeline    │
+│                     │  │   compile_report · generate_excel/chart  │
+│                     │  │   verify_claim · analyze_image_vlm        │
+│                     │  │   deep_research · digital_twin · /gem     │
+└─────────────────────┘  └──────────────────────────────────────────┘
+                          
+┌─────────────────────────────────────────────────────────────────┐
+│  Data & Services (bind-mounted /cryo-data/)                      │
+├─────────────────────────────────────────────────────────────────┤
+│  users/{uid}/                                                   │
+│    uploads/                      ← Uploaded files (2GB max)     │
+│    conversations/{cid}/          ← Per-conversation artifacts   │
+│      reports/*.html              ← Interactive reports (v4)     │
+│      sources/*.json              ← Markdown (editable)          │
+│  models/                                                        │
+│    human1/human1.xml             ← Human-GEM (12.9k reactions) │
+│    ijo1366/ijo1366.json          ← E. coli (1.3k reactions)    │
+│    yeast8/yeast8.json            ← S. cerevisiae (3.9k reactions) │
+│  ccle/                                                          │
+│    ccle_expression_human1.parquet ← 49 cell lines × 19,215 genes │
+│  gdsc/                                                          │
+│    gdsc2_sensitivity.csv         ← 235,748 drug-cell IC50s     │
+│  cache/                                                         │
+│    drug_targets.db               ← SQLite (ChEMBL/DGIdb, 7d TTL) │
+└─────────────────────────────────────────────────────────────────┘
+
+Optional Services:
+┌─────────────────────────────────────────────────────────────────┐
+│  VLM OCR Server (localhost:8001) — Image analysis microservice   │
+│  Gemini Vision 2 · Tesseract OCR · JSON output                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Tools Reference
 
 ### Core Biology (18 tools)
 
-| Tool | Source | What It Does |
-|------|--------|-------------|
-| `pubmed_search` | NCBI E-utilities | Search papers, PMIDs, abstracts |
-| `biorxiv_search` | bioRxiv API | Search preprints |
-| `fetch_citation` | CrossRef + PubMed | APA/MLA/Chicago citations |
-| `uniprot_lookup` | UniProt REST | Protein function, domains, GO terms |
-| `pdb_search` | RCSB PDB | 3D structures |
-| `chembl_search` | ChEMBL REST | Drug properties, SMILES, approval |
-| `opentargets_search` | OpenTargets GraphQL | Disease-target associations |
-| `clinvar_lookup` | ClinVar/NCBI | Variant pathogenicity |
-| `ensembl_vep` | Ensembl REST | SIFT/PolyPhen variant effects |
-| `compile_report` | Report Engine v4 | Markdown → interactive HTML report |
-| `get_last_report` | Disk | Retrieve raw markdown for editing |
-| `generate_excel` | openpyxl | Multi-sheet spreadsheets |
-| `generate_chart` | matplotlib | Standalone chart PNGs |
-| `verify_claim` | Multi-source | Cross-check claims (PubMed + OpenTargets + CrossRef) |
-| `analyze_image_vlm` | Gemini Vision | Analyze microscopy, gels, structures |
-| `deep_research` | gpt-researcher | Autonomous deep research |
-| `multi_agent_research` | open_deep_research | Multi-agent research |
-| `scientific_skill` | 133 skill packs | Biopython, DeepChem, ESM, MedChem |
+| Tool | Source | Input | Output |
+|------|--------|-------|--------|
+| `pubmed_search` | NCBI E-utilities | Query string | PMIDs, titles, abstracts, citation count |
+| `biorxiv_search` | bioRxiv API | Query string | Preprints, authors, dates |
+| `fetch_citation` | CrossRef + PubMed | PMID or DOI | APA/MLA/Chicago formatted |
+| `uniprot_lookup` | UniProt REST | Gene name (e.g., TP53) | Protein info: domains, GO, orthologs |
+| `pdb_search` | RCSB PDB | Protein name or ID | 3D structures, resolution, ligands |
+| `chembl_search` | ChEMBL REST | Drug/compound name | SMILES, properties, targets, IC50 |
+| `opentargets_search` | OpenTargets GraphQL | Disease or gene | Disease-target association scores |
+| `clinvar_lookup` | ClinVar/NCBI | Variant (rsid or HGVS) | Clinical significance, pathogenicity |
+| `ensembl_vep` | Ensembl REST | Genomic position | SIFT/PolyPhen predictions, impact |
+| `compile_report` | Report Engine v4 | Markdown content | Interactive HTML with charts/diagrams |
+| `get_last_report` | Disk/DB | Conversation ID | Raw markdown for editing |
+| `generate_excel` | openpyxl | Data + sheet names | Multi-sheet `.xlsx` spreadsheet |
+| `generate_chart` | matplotlib/Plotly | Data + chart type | Standalone PNG or interactive HTML |
+| `verify_claim` | Multi-source | Claim text | Verification status + sources |
+| `analyze_image_vlm` | Gemini Vision | Image file | Image analysis (gels, microscopy, etc.) |
+| `deep_research` | gpt-researcher | Topic | Deep multi-source research report |
+| `multi_agent_research` | open_deep_research | Topic | Multi-perspective research synthesis |
+| `scientific_skill` | 133 skill packs | Biopython, DeepChem, ESM, MedChem | Code templates + step-by-step execution |
 
 ### Omics Databases (3 tools)
 
@@ -333,20 +423,49 @@ Reports open in a slide-in side panel within CRYO — no new browser tab.
 
 ### Analysis Skills (10 tools)
 
-These tools return a code template + step-by-step instructions that the Hermes agent runs via `code_execution_tool`. They require uploaded data files.
+These tools return a code template + step-by-step instructions executed by Hermes agent. They require uploaded data files.
 
-| Tool | Stack | What It Does |
-|------|-------|-------------|
-| `differential_expression` | PyDESeq2 | DESeq2-equivalent DE analysis, volcano plot, DEG table |
-| `scrna_analysis` | Scanpy | QC → normalization → UMAP → Leiden clustering → marker genes |
-| `cell_annotation` | CellTypist | Automated cell type labeling with majority voting |
-| `atac_seq` | MACS3 | Peak calling from BAM with `--shift -75 --extsize 150`, FRiP scoring |
-| `chip_seq` | MACS3 | Peak calling with input control, narrow/broad peak mode |
-| `metagenomics` | Kraken2 + HUMAnN3 | FastQC → Trimmomatic → Kraken2 → Bracken → HUMAnN3 functional profiling |
-| `proteomics_ms` | MaxQuant output | Parse proteinGroups.txt, LFQ normalization, PCA, volcano |
-| `sec_report` | scipy | Savitzky-Golay smoothing, peak detection, oligomeric state classification |
-| `novelty_check` | PubMed API | Literature saturation score 1–10 based on recent publications |
-| `manuscript_pipeline` | Structured workflow | 8-stage paper planning: intro → methods → figures → submission |
+| Tool | Stack | Input | Pipeline |
+|------|-------|-------|----------|
+| `differential_expression` | PyDESeq2 | Count matrix CSV | DESeq2 → volcano plot → DEG table |
+| `scrna_analysis` | Scanpy | H5AD file | QC → norm → UMAP → Leiden → markers |
+| `cell_annotation` | CellTypist | H5AD (normalized) | Cell type labeling + confidence scores |
+| `atac_seq` | MACS3 | BAM + metadata | Peak calling (--shift -75) → BED + FRiP |
+| `chip_seq` | MACS3 | IP + input BAM | Narrow/broad peaks, summit annotation |
+| `metagenomics` | Kraken2 + HUMAnN3 | FASTQ reads | FastQC → Kraken2 → Bracken → profiling |
+| `proteomics_ms` | MaxQuant output | proteinGroups.txt | LFQ norm → PCA → volcano → pathways |
+| `sec_report` | scipy | SEC trace CSV | Savitzky-Golay → peaks → oligomeric state |
+| `novelty_check` | PubMed API | Research topic | Saturation score (1–10) + recent papers |
+| `manuscript_pipeline` | Structured workflow | Topic + context | 8-stage planning: abstract → figs → submission |
+
+### VLM & Image Analysis (New — 2026-05)
+
+| Service | Model | What It Does |
+|---------|-------|-------------|
+| `analyze_image_vlm` | Gemini Vision 2 | Upload gel photos, microscopy images → extract data |
+| `ocr_pipeline` | Gemini Vision 2 + Tesseract | Standalone VLM + OCR microservice (`:8001`) |
+
+**VLM OCR Server** (optional container):
+```bash
+docker run -p 8001:8001 cryo-vlm:latest
+# POST /process_image + image file → structured JSON
+```
+
+### Genome-Scale Model API (GEM Graph — v1, 2026-04)
+
+Query any supported backbone (Human-GEM, iJO1366, Yeast8, Plasmodium).
+
+| Endpoint | What It Returns |
+|----------|----------------|
+| `GET /api/gem/backbones` | List all 4 models + load status |
+| `GET /api/gem/stats?backbone=ijo1366` | Reaction/gene/metabolite counts |
+| `GET /api/gem/gene/{gene_id}?backbone=ijo1366` | Gene info + associated reactions |
+| `GET /api/gem/reaction/{rxn_id}?backbone=ijo1366` | Reaction details (substrate, product, GPR) |
+
+**Slash command:**
+```bash
+/gem stats --model ijo1366    # CLI query of above endpoints
+```
 
 ## Environment Variables
 

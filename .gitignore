@@ -10,6 +10,7 @@ venv/
 currentstate_*.json
 .claude/
 cryo-data/
+.pytest_cache
 
 # Environment
 .env

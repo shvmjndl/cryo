@@ -74,7 +74,7 @@ export default function ChatPage({ user, onLogout }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamText])
 
-  const handleSend = useCallback(async (message: string) => {
+  const handleSend = useCallback(async (message: string, fileIds?: string[]) => {
     const tempUserMsg: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -85,7 +85,7 @@ export default function ChatPage({ user, onLogout }: Props) {
     setStreamText('')
 
     try {
-      const response = await chat.sendStream(message, activeConvoId || undefined)
+      const response = await chat.sendStream(message, activeConvoId || undefined, fileIds)
       if (!response.body) throw new Error('No response body')
 
       const reader = response.body.getReader()

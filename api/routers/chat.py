@@ -1,27 +1,97 @@
+import asyncio
 import json
+import logging
 import uuid
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.auth import get_current_user
 from api.core.database import get_db
+from api.models.collection import Collection, CollectionFile
 from api.models.conversation import Conversation, Message
 from api.models.user import User
 from api.services.hermes_bridge import HermesBridge
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 bridge = HermesBridge()
 
 
+async def _backfill_collection_chat_dir(
+    user_id: str, conversation_id: str, db: AsyncSession
+) -> None:
+    """Wire the user's collection to this conversation and create chats/ symlinks.
+
+    Uses the SAME db session as the caller so the conversation row (just flushed)
+    is visible and the FK update succeeds within the same transaction.
+    Safe to call on every message — mkdir/symlink calls are idempotent.
+    """
+    from pathlib import Path
+    from api.routers.collections import _collection_dir, _add_chat_symlinks
+
+    try:
+        conv_uuid = uuid.UUID(conversation_id)
+        user_uuid = uuid.UUID(user_id)
+
+        # Find the collection for this conversation: exact match first,
+        # then the most recent unlinked one (pre-chat uploads).
+        result = await db.execute(
+            select(Collection).where(
+                Collection.user_id == user_uuid,
+                Collection.conversation_id == conv_uuid,
+            ).limit(1)
+        )
+        target = result.scalar_one_or_none()
+
+        if target is None:
+            result = await db.execute(
+                select(Collection).where(
+                    Collection.user_id == user_uuid,
+                    Collection.conversation_id.is_(None),
+                ).order_by(Collection.created_at.desc()).limit(1)
+            )
+            target = result.scalar_one_or_none()
+
+        if target is None:
+            return
+
+        # Link collection to this conversation (conversation is flushed in same tx)
+        if target.conversation_id is None:
+            target.conversation_id = conv_uuid
+            await db.flush()
+
+        # Create chats/{conversation_id}/ and symlink all processed files
+        col_dir = _collection_dir(user_id, str(target.id))
+        chat_dir = col_dir / "chats" / conversation_id
+        await asyncio.to_thread(chat_dir.mkdir, parents=True, exist_ok=True)
+
+        files_result = await db.execute(
+            select(CollectionFile).where(
+                CollectionFile.collection_id == target.id,
+                CollectionFile.status == "done",
+            )
+        )
+        for f in files_result.scalars().all():
+            await asyncio.to_thread(
+                _add_chat_symlinks,
+                col_dir, conversation_id,
+                Path(f.original_path), f.markdown_path or "", f.original_filename,
+            )
+
+    except Exception as e:
+        logger.warning("collection chat-dir backfill failed: %s", e)
+
+
 class ChatRequest(BaseModel):
     message: str
     conversation_id: str | None = None
+    file_ids: list[str] | None = None
 
 
 class ConversationOut(BaseModel):
@@ -114,6 +184,9 @@ async def send_message(
         db.add(convo)
         await db.flush()
 
+    # Wire collection → conversation and create chats/ symlink dir NOW (before streaming)
+    await _backfill_collection_chat_dir(str(user.id), str(convo.id), db)
+
     # Save user message
     user_msg = Message(conversation_id=convo.id, role="user", content=req.message)
     db.add(user_msg)
@@ -139,6 +212,7 @@ async def send_message(
         async for event in bridge.chat_stream(
             req.message, history,
             user_id=str(user.id), conversation_id=str(convo.id),
+            file_ids=req.file_ids or [],
         ):
             event_type = event.get("type", "delta")
 

@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react'
 import { Send, Dna, Minimize2, Maximize2, X, User, Microscope } from 'lucide-react'
-import { chat, type UploadRecord } from '../lib/api'
+import { chat, collections, type UploadRecord, type CollectionFileRecord } from '../lib/api'
 import ChatMessage from './ChatMessage'
 import { CELL_LINES, GEM_MODELS, type GemModel } from './SlashMenu'
+import FileMentionMenu from './FileMentionMenu'
 import FileUploadButton from './FileUploadButton'
 
 function extractFileLinks(content: string) {
@@ -38,6 +39,7 @@ const SLASH_COMMANDS = [
   { command: '/ms',          description: 'Mass-spec proteomics' },
   { command: '/sec',         description: 'SEC chromatography' },
   { command: '/gem',         description: 'GEM metabolic graph query' },
+  { command: '/collections', description: 'Search/read uploaded PDF or image documents' },
   { command: '/novelty',     description: 'Research novelty check' },
   { command: '/paper',       description: 'Manuscript pipeline' },
   { command: '/report',      description: 'Generate research report' },
@@ -64,6 +66,14 @@ function detectModelMode(val: string): { active: boolean; filter: string } {
   if (/--(?:model|backbone)$/.test(val.trimEnd())) return { active: true, filter: '' }
   return { active: false, filter: '' }
 }
+
+function detectMentionMode(val: string): { active: boolean; filter: string } {
+  const match = val.match(/@(\w*)$/)
+  if (match) return { active: true, filter: match[1] }
+  return { active: false, filter: '' }
+}
+
+interface MentionedFile { id: string; name: string }
 
 interface ChatMessage {
   id: string
@@ -92,8 +102,18 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
   const [conversationId, setConversationId] = useState<string | null>(data.conversationId)
   const [minimized, setMinimized] = useState(data.minimized)
   const [title, setTitle] = useState(data.title)
+  const [mentionedFiles, setMentionedFiles] = useState<MentionedFile[]>([])
+  const [availableFiles, setAvailableFiles] = useState<CollectionFileRecord[]>([])
+  const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const sentInitial = useRef(false)
+
+  const mentionMode = detectMentionMode(input)
+
+  useEffect(() => {
+    if (!mentionMode.active) return
+    collections.listFiles(conversationId || undefined).then(setAvailableFiles).catch(() => setAvailableFiles([]))
+  }, [mentionMode.active, conversationId])
 
   // Use refs for values needed in handleSend to avoid stale closures
   const conversationIdRef = useRef(conversationId)
@@ -138,9 +158,11 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
     const text = msg || input.trim()
     if (!text || streamingRef.current) return
 
+    const fileIds = mentionedFiles.map(f => f.id)
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
     setInput('')
+    setMentionedFiles([])
     setStreaming(true)
     setStreamText('')
 
@@ -156,7 +178,7 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
         fullMessage = `Context from previous research:\n${data.branchContext.slice(0, 500)}\n\nNew question: ${text}`
       }
 
-      const response = await chat.sendStream(fullMessage, conversationIdRef.current || undefined)
+      const response = await chat.sendStream(fullMessage, conversationIdRef.current || undefined, fileIds.length ? fileIds : undefined)
       if (!response.body) throw new Error('No response')
 
       const reader = response.body.getReader()
@@ -259,10 +281,23 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
         )}
       </div>
 
-      {/* Input with slash commands — nodrag nopan so typing works */}
+      {/* Input with slash/model/cell-line/@ menus — nodrag nopan so typing works */}
       <div className="chat-node-input nodrag nopan nowheel relative">
-        {/* Model sub-menu — shown before cell line check */}
-        {detectModelMode(input).active && (() => {
+        {/* @ file mention menu */}
+        <FileMentionMenu
+          files={availableFiles}
+          filter={mentionMode.filter}
+          selectedIndex={mentionSelectedIdx}
+          onSelect={file => {
+            setInput(prev => prev.replace(/@\w*$/, `@${file.original_filename} `))
+            setMentionedFiles(prev => prev.some(f => f.id === file.id) ? prev : [...prev, { id: file.id, name: file.original_filename }])
+            setMentionSelectedIdx(0)
+          }}
+          visible={mentionMode.active}
+        />
+
+        {/* Model sub-menu */}
+        {!mentionMode.active && detectModelMode(input).active && (() => {
           const { filter } = detectModelMode(input)
           const models = GEM_MODELS.filter(m =>
             m.key.toLowerCase().includes(filter.toLowerCase()) ||
@@ -293,7 +328,7 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
         })()}
 
         {/* Cell line sub-menu */}
-        {!detectModelMode(input).active && detectCellLineMode(input).active && (() => {
+        {!mentionMode.active && !detectModelMode(input).active && detectCellLineMode(input).active && (() => {
           const { filter } = detectCellLineMode(input)
           const lines = CELL_LINES.filter(cl => cl.toLowerCase().includes(filter.toLowerCase()))
           return lines.length > 0 ? (
@@ -314,7 +349,7 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
         })()}
 
         {/* Slash command menu */}
-        {!detectModelMode(input).active && !detectCellLineMode(input).active && /^\/\w*$/.test(input) && (
+        {!mentionMode.active && !detectModelMode(input).active && !detectCellLineMode(input).active && /^\/\w*$/.test(input) && (
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-cryo-surface-2)] border border-[var(--color-cryo-border-bright)] rounded-lg max-h-40 overflow-y-auto shadow-lg" style={{ zIndex: 9999 }}>
             {SLASH_COMMANDS
               .filter(c => c.command.includes(input.toLowerCase()))
@@ -331,11 +366,51 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
           </div>
         )}
 
+        {/* Mentioned file pills */}
+        {mentionedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1 px-0.5">
+            {mentionedFiles.map(f => (
+              <span key={f.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-[var(--color-cryo-accent)]/15 text-[var(--color-cryo-accent)] border border-[var(--color-cryo-accent)]/30">
+                <span className="max-w-[100px] truncate">{f.name}</span>
+                <button
+                  onClick={() => {
+                    setMentionedFiles(prev => prev.filter(x => x.id !== f.id))
+                    setInput(prev => prev.replace(new RegExp(`@${f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?`, 'g'), ''))
+                  }}
+                  className="hover:text-[var(--color-cryo-text)]"
+                  tabIndex={-1}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         <textarea
           value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-          placeholder='Type "/" for commands or attach file...'
+          onChange={e => {
+            setInput(e.target.value)
+            if (!detectMentionMode(e.target.value).active) setMentionSelectedIdx(0)
+          }}
+          onKeyDown={e => {
+            if (mentionMode.active) {
+              const filtered = availableFiles.filter(f => f.original_filename.toLowerCase().includes(mentionMode.filter.toLowerCase()))
+              if (e.key === 'ArrowDown') { e.preventDefault(); setMentionSelectedIdx(i => Math.min(i + 1, filtered.length - 1)); return }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setMentionSelectedIdx(i => Math.max(i - 1, 0)); return }
+              if (e.key === 'Enter' && !e.shiftKey && filtered[mentionSelectedIdx]) {
+                e.preventDefault()
+                const file = filtered[mentionSelectedIdx]
+                setInput(prev => prev.replace(/@\w*$/, `@${file.original_filename} `))
+                setMentionedFiles(prev => prev.some(f => f.id === file.id) ? prev : [...prev, { id: file.id, name: file.original_filename }])
+                setMentionSelectedIdx(0)
+                return
+              }
+              if (e.key === 'Escape') { setInput(prev => prev.replace(/@\w*$/, '')); return }
+            }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+          }}
+          placeholder='Type "/" for commands, "@" to tag a document...'
           disabled={streaming}
           rows={1}
           className="node-textarea"
@@ -348,6 +423,11 @@ export default function ChatNode({ id, data }: NodeProps & { data: ChatNodeData 
             const cmd = record.suggested_command || ''
             const insertion = cmd ? `${cmd} ${record.server_path} ` : `${record.server_path} `
             setInput(prev => prev ? `${prev.trimEnd()} ${insertion}` : insertion)
+          }}
+          onDocumentUploaded={(record: CollectionFileRecord) => {
+            setMentionedFiles(prev =>
+              prev.some(f => f.id === record.id) ? prev : [...prev, { id: record.id, name: record.original_filename }]
+            )
           }}
         />
         <button onClick={() => handleSend()} disabled={!input.trim() || streaming} className="node-send-btn">

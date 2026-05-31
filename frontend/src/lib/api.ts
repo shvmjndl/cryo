@@ -43,14 +43,14 @@ export const chat = {
   archive: (id: string) => request(`/chat/conversations/${id}`, { method: 'DELETE' }),
   tools: () => request('/chat/tools'),
 
-  sendStream: (message: string, conversationId?: string) => {
+  sendStream: (message: string, conversationId?: string, fileIds?: string[]) => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (token) headers['Authorization'] = `Bearer ${token}`
 
     return fetch(`${API_BASE}/chat/send`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ message, conversation_id: conversationId }),
+      body: JSON.stringify({ message, conversation_id: conversationId, file_ids: fileIds?.length ? fileIds : undefined }),
     })
   },
 }
@@ -93,6 +93,82 @@ export const uploads = {
   },
 
   remove: (id: string) => request(`/uploads/${id}`, { method: 'DELETE' }),
+}
+
+// Document Collections
+export interface CollectionRecord {
+  id: string
+  name: string
+  description: string | null
+  file_count: number
+  conversation_id: string | null
+  created_at: string
+}
+
+export interface CollectionFileRecord {
+  id: string
+  collection_id: string
+  original_filename: string
+  original_path: string
+  markdown_path: string | null
+  file_size: number
+  file_ext: string | null
+  status: 'pending' | 'processing' | 'done' | 'error'
+  error_message: string | null
+  created_at: string
+  processed_at: string | null
+  collection: CollectionRecord
+}
+
+export const collections = {
+  list: (conversationId?: string): Promise<CollectionRecord[]> =>
+    request(`/collections${conversationId ? `?conversation_id=${conversationId}` : ''}`),
+
+  listFiles: (conversationId?: string): Promise<CollectionFileRecord[]> =>
+    collections.list(conversationId).then(async cols => {
+      if (!cols.length) return []
+      const col = await collections.get(cols[0].id)
+      return col.files ?? []
+    }),
+
+  get: (id: string): Promise<CollectionRecord & { files: CollectionFileRecord[] }> =>
+    request(`/collections/${id}`),
+
+  create: (name: string, conversationId?: string): Promise<CollectionRecord> =>
+    request(`/collections?name=${encodeURIComponent(name)}${conversationId ? `&conversation_id=${conversationId}` : ''}`, { method: 'POST' }),
+
+  upload: (
+    file: File,
+    opts: { collectionId?: string; conversationId?: string; collectionName?: string },
+    onProgress?: (pct: number) => void,
+  ): Promise<CollectionFileRecord> => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const params = new URLSearchParams()
+      if (opts.collectionId) params.set('collection_id', opts.collectionId)
+      if (opts.conversationId) params.set('conversation_id', opts.conversationId)
+      if (opts.collectionName) params.set('collection_name', opts.collectionName)
+      const url = `${API_BASE}/collections/upload?${params.toString()}`
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', url)
+      const storedToken = localStorage.getItem('cryo_token')
+      if (storedToken) xhr.setRequestHeader('Authorization', `Bearer ${storedToken}`)
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress?.(Math.round(e.loaded / e.total * 100)) }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText))
+        else reject(new Error(JSON.parse(xhr.responseText)?.detail || `HTTP ${xhr.status}`))
+      }
+      xhr.onerror = () => reject(new Error('Upload failed'))
+      xhr.send(formData)
+    })
+  },
+
+  fileStatus: (collectionId: string, fileId: string): Promise<CollectionFileRecord & { markdown?: string }> =>
+    request(`/collections/${collectionId}/files/${fileId}`),
+
+  search: (collectionId: string, q: string, limit = 10) =>
+    request(`/collections/${collectionId}/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 }
 
 // Workspace

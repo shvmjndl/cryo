@@ -171,6 +171,8 @@ SLASH_COMMANDS = [
     {"command": "/sec", "description": "SEC chromatography peak analysis", "example": "/sec sec_data.csv"},
     # ── GEM graph ──
     {"command": "/gem", "description": "Query GEM metabolite–reaction–gene knowledge graph", "example": "/gem glucose reactions --model ijo1366"},
+    # ── Document collections ──
+    {"command": "/collections", "description": "Search or read uploaded PDF/image documents (VLM parsed)", "example": "/collections search kinase inhibitor"},
     # ── Research workflow ──
     {"command": "/novelty", "description": "Research novelty / saturation check", "example": "/novelty CRISPR base editing sickle cell"},
     {"command": "/paper", "description": "Full manuscript planning pipeline", "example": "/paper spatial transcriptomics TNBC"},
@@ -436,13 +438,85 @@ class HermesBridge:
                 "cryo_digital_twin", "cryo_gem_graph",
                 "cryo_omics_databases", "cryo_analysis_skills",
                 "cryo_deep_research", "cryo_cosight",
-                "cryo_scientific_skills",
+                "cryo_scientific_skills", "cryo_collections",
             ],
         )
+
+    async def _fetch_file_context(
+        self, file_ids: list[str], user_id: str = "", message: str = ""
+    ) -> str:
+        """Fetch markdown content for @-mentioned files and format as injected context.
+
+        Resolves files by UUID (from explicit file_ids) OR by @filename mention in the
+        message text (fallback when the frontend didn't pass file_ids).
+        """
+        from pathlib import Path as _Path
+        from api.core.database import async_session
+        from api.models.collection import Collection, CollectionFile
+        from sqlalchemy import select
+        import re as _re
+        import uuid as _uuid
+
+        blocks: list[str] = []
+        try:
+            async with async_session() as db:
+                if file_ids:
+                    result = await db.execute(
+                        select(CollectionFile).where(
+                            CollectionFile.id.in_([_uuid.UUID(fid) for fid in file_ids]),
+                            CollectionFile.status == "done",
+                        )
+                    )
+                    rows = result.scalars().all()
+                else:
+                    # Fallback: extract @filename mentions from message text
+                    mentions = _re.findall(r'@([\w\s.\-]+?)(?=\s+\w|\s*$)', message)
+                    if not mentions or not user_id:
+                        return ""
+                    # Find user's collections and search for files by name
+                    col_result = await db.execute(
+                        select(Collection).where(
+                            Collection.user_id == _uuid.UUID(user_id),
+                        ).order_by(Collection.created_at.desc()).limit(5)
+                    )
+                    col_ids = [c.id for c in col_result.scalars().all()]
+                    if not col_ids:
+                        return ""
+                    file_result = await db.execute(
+                        select(CollectionFile).where(
+                            CollectionFile.collection_id.in_(col_ids),
+                            CollectionFile.status == "done",
+                        )
+                    )
+                    all_files = file_result.scalars().all()
+                    # Match by filename (case-insensitive, strip extension for fuzzy match)
+                    rows = []
+                    for mention in mentions:
+                        mention_clean = mention.strip().lower()
+                        match = next(
+                            (f for f in all_files
+                             if mention_clean in f.original_filename.lower()
+                             or f.original_filename.lower().startswith(mention_clean)),
+                            None,
+                        )
+                        if match and match not in rows:
+                            rows.append(match)
+
+                for f in rows:
+                    if f.markdown_path and _Path(f.markdown_path).exists():
+                        content = _Path(f.markdown_path).read_text(encoding="utf-8")
+                        blocks.append(
+                            f"[Document: {f.original_filename}]\n{content}\n[/Document]"
+                        )
+                        logger.info("Injecting document context: %s", f.original_filename)
+        except Exception as e:
+            logger.warning("Failed to fetch file context for %s: %s", file_ids or message[:60], e)
+        return "\n\n".join(blocks)
 
     async def chat_stream(
         self, message: str, history: list[dict[str, str]] | None = None,
         user_id: str = "", conversation_id: str = "",
+        file_ids: list[str] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         digital_twin_query, cell_line, backbone = _extract_digital_twin_query(message)
         if digital_twin_query:
@@ -484,6 +558,9 @@ class HermesBridge:
         logger.info("Chat: user=%s convo=%s history=%d translated=%r",
                     user_id[:8], conversation_id[:8], len(history or []), translated[:60])
 
+        # Pre-fetch @-mentioned file content so agent receives it inline
+        file_context = await self._fetch_file_context(file_ids or [], user_id=user_id, message=translated)
+
         chunks: list[str] = []
         transcript: list[str] = []
         tool_events: list[dict] = []
@@ -510,6 +587,9 @@ class HermesBridge:
             if user_id and conversation_id:
                 os.environ["CRYO_USER_ID"] = user_id
                 os.environ["CRYO_CONVERSATION_ID"] = conversation_id
+                # Mint a short-lived token so collections tool can call the API
+                from api.core.auth import create_access_token
+                os.environ["CRYO_USER_TOKEN"] = create_access_token(user_id)
 
             # Build conversation history for Hermes (from our PostgreSQL messages)
             conversation_history = []
@@ -527,7 +607,11 @@ class HermesBridge:
                 "/report, /chart, /export, /repurpose, /pathway, /compare, /digital_twin. "
                 "Your tools: pubmed_search, uniprot_lookup, pdb_search, chembl_search, "
                 "opentargets_search, clinvar_lookup, ensembl_vep, fetch_citation, "
-                "compile_report, generate_excel, generate_chart, verify_claim, analyze_image_vlm, digital_twin. "
+                "compile_report, generate_excel, generate_chart, verify_claim, analyze_image_vlm, digital_twin, collections. "
+                "IMPORTANT — document access: If the user references 'the document', 'the file', 'the PDF', 'the paper', "
+                "'the report', or asks to summarise/read/analyse an uploaded file, you MUST call the collections tool "
+                "(action='read_file' or action='search') FIRST before answering. "
+                "Do NOT summarise from your own knowledge when a document has been uploaded. "
                 "For every non-digital-twin answer, you must call fetch_citation before the final response and include citations and/or a References section. "
                 "Use max 5 tool calls. After tools return, respond immediately.\n\n"
             )
@@ -537,7 +621,22 @@ class HermesBridge:
             if any(kw in translated.lower() for kw in ["report about", "research report", "compile_report"]):
                 report_ctx = REPORT_FORMAT_PROMPT
 
-            full_message = f"{system_ctx}{report_ctx}{translated}"
+            # Inject @-mentioned document content before the user message
+            if file_context:
+                doc_ctx = (
+                    "The following document(s) have been provided inline — answer DIRECTLY from their content. "
+                    "Do NOT call the collections tool for these documents; the content is already below.\n\n"
+                    f"{file_context}\n\n"
+                )
+                # Strip @mentions from user message — content already injected above
+                import re as _re
+                clean_message = _re.sub(r'@[\w.\-\s]+?(?=\s+\w|\s*$)', '', translated).strip()
+                user_message = clean_message or translated
+            else:
+                doc_ctx = ""
+                user_message = translated
+
+            full_message = f"{system_ctx}{report_ctx}{doc_ctx}{user_message}"
 
             # Use run_conversation with history so agent has context from prior messages
             result = agent.run_conversation(

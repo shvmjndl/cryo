@@ -14,7 +14,7 @@ from api.core.config import settings
 from api.core.database import Base, async_session, engine
 from api.core.logging_config import setup_logging
 from api.models.user import User
-from api.routers import auth, chat, workspace, digital_twin, uploads, gem
+from api.routers import auth, chat, workspace, digital_twin, uploads, gem, collections
 
 setup_logging(os.getenv("LOG_LEVEL", "INFO"))
 
@@ -81,6 +81,7 @@ app.include_router(workspace.router, prefix="/api")
 app.include_router(digital_twin.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
 app.include_router(gem.router, prefix="/api")
+app.include_router(collections.router, prefix="/api")
 
 
 @app.get("/api/health")
