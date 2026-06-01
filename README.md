@@ -5,9 +5,15 @@
 
 **Built on:** [Hermes Agent](https://github.com/nousresearch/hermes-agent) with **28+ biology tools** | **Genome-scale metabolic digital twin engine** (Human-GEM, iJO1366, Yeast8, etc.) | **Interactive report engine v4** with charts, diagrams, callouts, timelines | **Google Gemini 3 Pro Preview** | **React Flow workspace** | **PostgreSQL persistence**
 
-## Demo
+## Screenshots
 
-<video src="media/demo.mov" controls width="100%"></video>
+<p>
+  <img src="media/workspace.png" width="48%" alt="Workspace" />
+  <img src="media/chat-report.png" width="48%" alt="Chat + Report" />
+</p>
+<p>
+  <img src="media/login.png" width="40%" alt="Login" />
+</p>
 
 ## Quick Start
 
