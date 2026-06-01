@@ -18,7 +18,17 @@ from api.routers import auth, chat, workspace, digital_twin, uploads, gem, colle
 
 setup_logging(os.getenv("LOG_LEVEL", "INFO"))
 
-REPORTS_DIR = Path(os.getenv("CRYO_DATA_DIR", "/cryo-data")) / "reports"
+def _get_data_dir() -> Path:
+    """Resolve data directory from env or project root."""
+    env_dir = os.getenv("CRYO_DATA_DIR", "").strip()
+    if env_dir:
+        p = Path(env_dir)
+        if p.is_absolute():
+            return p
+        return (Path(__file__).parent.parent / env_dir).resolve()
+    return (Path(__file__).parent.parent / "cryo-data").resolve()
+
+REPORTS_DIR = _get_data_dir() / "reports"
 ALLOWED_EXTENSIONS = {".html", ".pdf", ".xlsx", ".png", ".jpg", ".csv", ".md"}
 MEDIA_TYPES = {
     ".html": "text/html",
@@ -100,7 +110,7 @@ async def download_report(file_path: str):
         raise HTTPException(status_code=400, detail="File type not allowed")
 
     filename = requested.name
-    data_dir = Path(os.getenv("CRYO_DATA_DIR", "/cryo-data"))
+    data_dir = _get_data_dir()
     filepath = data_dir / requested
     if not filepath.exists():
         filepath = REPORTS_DIR / requested

@@ -92,23 +92,32 @@ export default function ChatPage({ user, onLogout }: Props) {
       const decoder = new TextDecoder()
       let fullText = ''
       let convoId = activeConvoId
+      let sseBuffer = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+        sseBuffer += decoder.decode(value, { stream: true })
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = JSON.parse(line.slice(6))
+        // SSE events are delimited by \n\n — only parse complete events
+        const events = sseBuffer.split('\n\n')
+        sseBuffer = events.pop() ?? ''
 
-          if (data.type === 'delta') {
-            fullText += data.text
-            setStreamText(fullText)
-          } else if (data.type === 'done') {
-            convoId = data.conversation_id
+        for (const event of events) {
+          for (const line of event.split('\n')) {
+            if (!line.startsWith('data: ')) continue
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (data.type === 'delta') {
+                fullText += data.text
+                setStreamText(fullText)
+              } else if (data.type === 'done') {
+                convoId = data.conversation_id
+              }
+            } catch (parseErr) {
+              console.error('SSE parse error:', parseErr)
+            }
           }
         }
       }

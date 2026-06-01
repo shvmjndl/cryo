@@ -32,7 +32,19 @@ from pathlib import Path
 
 logger = logging.getLogger("cryo.report_engine")
 
-DATA_DIR = Path(os.getenv("CRYO_DATA_DIR", "/cryo-data"))
+def _get_data_dir() -> Path:
+    """Resolve data directory from env or project root."""
+    env_dir = os.getenv("CRYO_DATA_DIR", "").strip()
+    if env_dir:
+        p = Path(env_dir)
+        if p.is_absolute():
+            return p
+        # Relative path — resolve from project root
+        return (Path(__file__).parent.parent.parent / env_dir).resolve()
+    # Fallback: project_root/cryo-data
+    return (Path(__file__).parent.parent.parent / "cryo-data").resolve()
+
+DATA_DIR = _get_data_dir()
 
 
 def _get_reports_dir() -> Path:
